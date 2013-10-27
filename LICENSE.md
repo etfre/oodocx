@@ -1,5 +1,5 @@
 Copyright (c) 2009-2010 Mike MacCana
-Copyright (c) 2013 Evan Fredericksen
+<p>Copyright (c) 2013 Evan Fredericksen</p>
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation
