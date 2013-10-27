@@ -6,7 +6,7 @@ setup(
     version = "0.1.0",
     packages = find_packages(),
     include_package_data = True,
-    install_requires = ['lxml'],
+    # install_requires = ['lxml'],
     # metadata for upload to PyPI
     author = "Evan Fredericksen",
     author_email = "me@example.com",

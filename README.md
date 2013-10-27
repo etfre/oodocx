@@ -22,7 +22,11 @@ the modify_font and modify_paragraph functions, which allow for easy modificatio
 common font and paragraph properties of an element or a list of elements.</p>
 
 <h2>Installation</h2>
-Clone this repository, navigate your shell window to the oodocx directory folder that contains the setup.py file, and enter "python setup.py install" (or just "setup.py install", depending on how you execute python files on your computer)
+First, ensure that you have the appropriate version of lxml installed. Then,
+clone this repository, navigate your shell window to the oodocx directory
+folder that contains the setup.py file, and enter "python setup.py install"
+(or just "setup.py install", depending on how you execute python files on your
+computer)
 
 <h2>How do I...</h2>
 First of all, be sure to check out the /examples folder for basic examples of this module
