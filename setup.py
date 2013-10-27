@@ -7,12 +7,6 @@ setup(
     packages = find_packages(),
     include_package_data = True,
     install_requires = ['lxml'],
-    # package_data = {
-        # # If any package contains *.txt or *.rst files, include them:
-        # '': ['*.txt', '*.rst'],
-        # # And include any *.msg files found in the 'hello' package, too:
-        # 'hello': ['*.msg'],
-    # },
     # metadata for upload to PyPI
     author = "Evan Fredericksen",
     author_email = "me@example.com",
