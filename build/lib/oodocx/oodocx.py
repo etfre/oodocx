@@ -368,6 +368,7 @@ class Docx():
 		for xmlfile, relpath in self.xmlfiles.items():
 			absolutepath = os.path.split(os.path.join(WRITE_DIR, relpath))[0]
 			if not os.path.isdir(absolutepath):
+				print(absolutepath)
 				os.mkdir(absolutepath)
 			newdoc = open(relpath, 'w')
 			newdoc.write(etree.tostring(xmlfile).decode(encoding='UTF-8'))
