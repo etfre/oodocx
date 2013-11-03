@@ -102,32 +102,39 @@ def setup_comments(document):
 		'mc:Ignorable="w14 wp14"></w:comments>')
 		next_id = '0'
 		document.xmlfiles[document.comments] = os.path.join('word', 'comments.xml')
-		# document.contenttypes.append(etree.fromstring(
-		# '<Override PartName="/word/comments.xml" ContentType="application/vnd.'
-		# 'openxmlformats-officedocument.wordprocessingml.comments+xml"/>'))
 	else:
 		next_id = str(len([element for element in document.comments if
 		element.tag == '{' + NSPREFIXES['w'] + '}Comment']))
-	flat_contenttypes = sum( #checks Types element to see if comments element is included, adds it if not
-	[child.items() for child in document.contenttypes.getchildren()], [])
-	if '/word/comments.xml' not in [child[1] for child in flat_contenttypes]:
-		document.contenttypes.append(makeelement('Override', nsprefix=None,
-		attributes={'PartName': '/word/comments.xml',
-					'ContentType': 'application/vnd.openxmlformats-'
-					'officedocument.wordprocessingml.comments+xml'}))
-	flat_relationships = sum( #checks Relationships element to see if comments element is included, adds it if not
-	[child.items() for child in document.relationships.getchildren()], [])
-	if 'comments.xml' not in [child[1] for child in flat_relationships]:
-		id_numbers = sorted([int(item[1][3:]) for item in flat_relationships if item[0] == 'Id'])
-		rId_number = len(id_numbers) + 1
-		for index, number in enumerate(id_numbers):
-			if index + 1 != number:
-				rId_number = index + 1
-				break
+	add_content_override(document,  '/word/comments.xml',
+							'application/vnd.openxmlformats-officedocument'
+							'.wordprocessingml.comments+xml')
+	add_relationship(document, 'comments.xml', 'http://schemas.'
+	'openxmlformats.org/officeDocument/2006/relationships/comments')
+	return next_id
+
+def add_relationship(document, target, type):
+	'''checks Relationships element to see if element is included,
+	adds it if not, returns element's rId'''
+	relationship_items = [child.items() for child in document.relationships.getchildren()]
+	flat_relationships = sum(relationship_items, [])
+	id_numbers = sorted([int(item[1][3:]) for item in flat_relationships if item[0] == 'Id'])
+	rId_number = len(id_numbers) + 1
+	for index, number in enumerate(id_numbers):
+		if index + 1 != number:
+			rId_number = index + 1
+			break
+	if target not in [child[1] for child in flat_relationships] or 'media' in target:
 		document.relationships.append(makeelement('Relationship', nsprefix=None,
 		attributes={'Id': 'rId' + str(rId_number),
-					'Type': 'http://schemas.openxmlformats.org/officeDocument'
-					'/2006/relationships/comments',
-					'Target': 'comments.xml'}))
-	return next_id
+					'Target': target,
+					'Type': type}))
+	return str(rId_number)
 	
+def add_content_override(document, part_name, content_type): 
+	'''checks Types element to see if comments element is included,
+	adds it if not'''
+	flat_contenttypes = sum(
+	[child.items() for child in document.contenttypes.getchildren()], [])
+	if 'part_name' not in [child[1] for child in flat_contenttypes]:
+		document.contenttypes.append(makeelement('Override', nsprefix=None,
+		attributes={'PartName': part_name, 'ContentType': content_type}))

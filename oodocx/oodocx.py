@@ -368,6 +368,32 @@ class Docx():
 			sect_props = makeelement('sectPr')
 			body.append(sect_props)
 			return sect_props
+			
+	def get_document_text(self):
+		'''Return the raw text of a document, as a list of paragraphs.'''
+		paratextlist = []
+		# Compile a list of all paragraph (p) elements
+		paralist = []
+		for element in self.document.iter():
+			# Find p (paragraph) elements
+			if element.tag == '{' + NSPREFIXES['w'] + '}p':
+				paralist.append(element)
+		# Since a single sentence might be spread over multiple text elements, iterate through each
+		# paragraph, appending all text (t) children to that paragraph's text.
+		for para in paralist:
+			paratext = u''
+			# Loop through each paragraph
+			for element in para.iter():
+				# Find t (text) elements
+				if element.tag == '{' + NSPREFIXES['w'] + '}t':
+					if element.text:
+						paratext = paratext+element.text
+				elif element.tag == '{' + NSPREFIXES['w'] + '}tab':
+					paratext = paratext + '\t'
+			# Add our completed paragraph text to the list of paragraph text
+			if not len(paratext) == 0:
+				paratextlist.append(paratext)
+		return paratextlist
 						
 	def save(self, output):
 		docxfile = zipfile.ZipFile(output, mode='w', compression=zipfile.ZIP_DEFLATED)
@@ -922,12 +948,10 @@ def picture(document, picpath, picdescription, pixelwidth=None, pixelheight=None
 	height = str(pixelheight * emuperpixel)
 	# Set relationship ID to the first available
 	picid = '2'
-	rId = 'rId' + str(len(document.relationships) + 1)
-	picrelationship = makeelement('Relationship', nsprefix=None,
-	attributes={'Id': rId,
-	'Type': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
-	'Target': 'media/' + picname})
-	document.relationships.append(picrelationship)
+	rId = 'rId' + write_files.add_relationship(document,
+								os.path.join('media', picname),
+								'http://schemas.openxmlformats.org/'
+								'officeDocument/2006/relationships/image')
 	# There are 3 main elements inside a picture
 	# 1. The Blipfill - specifies how the image fills the picture area (stretch, tile, etc.)
 	blipfill = makeelement('blipFill', nsprefix='pic')
