@@ -80,6 +80,28 @@ def write_rels():
 	relationships.append(relationship2)
 	relationships.append(relationship1)
 	return relationships
+
+def write_content_types():
+	content_types = etree.fromstring(
+	'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"> '
+	'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/> '
+	'<Default Extension="xml" ContentType="application/xml"/> '
+	'<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/> '
+	'<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/> '
+	'<Override PartName="/word/stylesWithEffects.xml" ContentType="application/vnd.ms-word.stylesWithEffects+xml"/> '
+	'<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/> '
+	'<Override PartName="/word/webSettings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"/> '
+	'<Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/> '
+	'<Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/> '
+	'<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/> '
+	'<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/> '
+	'<Default Extension="jpeg" ContentType="image/jpeg"/> '
+	'<Default Extension="gif" ContentType="image/gif"/> '
+	'<Default Extension="jpg" ContentType="image/jpeg"/> '
+	'<Default Extension="png" ContentType="image/png"/> '
+	'</Types>')
+	# document.xmlfiles[document.comments] = os.path.join('word', 'comments.xml')
+	return content_types
 	
 def setup_comments(document):
 	if document.comments is None:
@@ -135,6 +157,6 @@ def add_content_override(document, part_name, content_type):
 	adds it if not'''
 	flat_contenttypes = sum(
 	[child.items() for child in document.contenttypes.getchildren()], [])
-	if 'part_name' not in [child[1] for child in flat_contenttypes]:
+	if part_name not in [child[1] for child in flat_contenttypes]:
 		document.contenttypes.append(makeelement('Override', nsprefix=None,
 		attributes={'PartName': part_name, 'ContentType': content_type}))

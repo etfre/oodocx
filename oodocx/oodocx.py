@@ -92,6 +92,8 @@ class Docx():
 			shutil.copytree(TEMPLATE_DIR, WRITE_DIR)
 			self.rels = write_files.write_rels()
 			self.xmlfiles[self.rels] = os.path.join('_rels', '.rels')
+			self.contenttypes = write_files.write_content_types()
+			self.xmlfiles[self.contenttypes] = '[Content_Types].xml'
 		for root, dirs, filenames in os.walk(WRITE_DIR):
 			for file in filenames:
 				if file != 'theme1.xml' and (file[-4:] == '.xml'
