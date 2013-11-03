@@ -14,6 +14,7 @@ import zipfile
 import shutil
 import re
 import time
+import datetime
 import os
 import collections
 from lxml import etree
@@ -78,6 +79,10 @@ class Docx():
 		self.xmlfiles = {}
 		if os.path.isdir(WRITE_DIR):
 			shutil.rmtree(WRITE_DIR)
+		# Declare empty attributes, which may or may not be assigned to xml
+		# elements later
+		self.comments = None
+		# self.xmlfiles[self.comments] = os.path.join('word/comments.xml')
 		if docx:
 			os.mkdir(WRITE_DIR)
 			mydoc = zipfile.ZipFile(docx)
@@ -124,6 +129,9 @@ class Docx():
 					elif file == 'app.xml':
 						self.app = xmlfile
 						self.xmlfiles[self.app] = relpath
+					elif file == 'comments.xml':
+						self.comments = xmlfile
+						self.xmlfiles[self.comments] = relpath
 					elif file == 'core.xml': 
 						self.core = xmlfile
 						self.xmlfiles[self.core] = relpath
@@ -191,7 +199,10 @@ class Docx():
 		return result
 		
 	def replace(self, search, replace, advanced=False):
-		'''Replace all occurrences of string with a different string'''
+		'''Replace all occurrences of string with a different string.
+		If advanced is True, the function will ignore separate text
+		and run elements and instead search each raw paragraph text
+		as a single string'''
 		searchre = re.compile(search)
 		if not advanced:
 			for element in self.document.iter():
@@ -231,8 +242,7 @@ class Docx():
 					runs_to_modify = collections.OrderedDict()
 					for run, text in rundict.items():
 						if ((match0 < text[1] and match1 > text[0]) or
-							(match0 >= text[0] and match1 <= text[1]) or
-							(match1 > text[0] and match0 < text[1])): #FIXME: can this be simplified?
+							(match0 >= text[0] and match1 <= text[1])):
 							runs_to_modify[run] = text
 						elif runs_to_modify:
 							break
@@ -630,7 +640,7 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None, attrnspref
 		
 		for tagattribute in attributes:
 			newelement.set(attributenamespace+tagattribute, attributes[tagattribute])
-	if tagtext:
+	if tagtext is not None and len(tagtext):
 		newelement.text = tagtext
 	newelement.prefix
 	return newelement	
@@ -991,5 +1001,176 @@ def picture(document, picpath, picdescription, pixelwidth=None, pixelheight=None
 	paragraph = makeelement('p')
 	paragraph.append(run)
 	return paragraph
-
 	
+def append_text(element, text):		
+	if element.tag == '{' + NSPREFIXES['w'] + '}body':
+		try:
+			last_para = [child for child in element.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}p'][-1]
+		except IndexError:
+			element.append(paragraph(text))
+			return
+		try:
+			last_run = [child for child in last_para.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}r'][-1]
+		except IndexError:
+			last_run = makeelement('r')
+			last_para.append(last_run)
+		try:
+			last_text = [child for child in last_run.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}t'][-1]
+			last_text.text += text
+		except IndexError:
+			last_text = makeelement('t', tagtext=text)
+			last_run.append(last_text)
+	elif element.tag == '{' + NSPREFIXES['w'] + '}p':
+		try:
+			last_run = [child for child in element.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}r'][-1]
+		except IndexError:
+			last_run = makeelement('r')
+			element.append(last_run)
+		try:
+			last_text = [child for child in last_run.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}t'][-1]
+			last_text.text += text
+		except IndexError:
+			last_text = makeelement('t', tagtext=text)
+			last_run.append(last_text)
+	elif element.tag == '{' + NSPREFIXES['w'] + '}r':
+		try:
+			last_text = [child for child in element.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}t'][-1]
+			last_text.text += text
+		except IndexError:
+			last_text = makeelement('t', tagtext=text)
+			element.append(last_text)
+	elif element.tag == '{' + NSPREFIXES['w'] + '}t':
+		element.text += text
+
+def add_comment(document, text, start, end=None, username='', initials=''):
+	if end is None:
+		end = start
+	else:
+		sparent = start.getparent()
+		sgparent = start.getparent().getparent()
+		sggparent = start.getparent().getparent().getparent()
+		eparent = end.getparent()
+		egparent = end.getparent().getparent()
+		eggparent = end.getparent().getparent().getparent()
+		if start.tag == end.tag:
+			if start.tag == '{' + NSPREFIXES['w'] + '}p':
+				if sparent.index(start) > eparent.index(end):
+					raise ValueError('end element cannot precede start element')
+			elif start.tag == '{' + NSPREFIXES['w'] + '}r':		
+				if sgparent.index(sparent) > egparent.index(eparent):
+					raise ValueError('end element cannot precede start element')
+			elif start.tag == '{' + NSPREFIXES['w'] + '}t':		
+				if sggparent.index(sgparent) > eggparent.index(egparent):
+					raise ValueError('end element cannot precede start element')
+		elif sparent.tag == end.tag and (sgparent.index(sparent) >
+		eparent.index(eparent)):
+			raise ValueError('end element cannot precede start element')
+		elif sgparent.tag == end.tag and (sggparent.index(sgparent) >
+		eparent.index(eparent)):
+			raise ValueError('end element cannot precede start element')
+		elif start.tag == eparent.tag and (sparent.index(start) >
+		egparent.index(eparent)):
+			raise ValueError('end element cannot precede start element')
+		elif start.tag == egparent.tag and (sparent.index(start) >
+		eggparent.index(egparent)):
+			raise ValueError('end element cannot precede start element')
+	id_number = write_files.setup_comments(document)
+	if start.tag == '{' + NSPREFIXES['w'] + '}p': # Insert commentRangeStart element
+		start.insert(0, makeelement('commentRangeStart',
+		attributes={'id': id_number}))
+	elif start.tag == '{' + NSPREFIXES['w'] + '}r':
+		paragraph = start.getparent()
+		pos = paragraph.index(start)
+		paragraph.insert(pos, makeelement('commentRangeStart',
+		attributes={'id': id_number}))
+	elif start.tag == '{' + NSPREFIXES['w'] + '}t':
+		run = start.getparent()
+		paragraph = run.getparent()
+		text_pos = run.index(start)
+		run_pos = paragraph.index(run)
+		text_elements = [child for child in run.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}t']
+		if text_pos != 0:
+			preceding_run = makeelement('r')
+			for element_text in text_elements[:text_pos - 1]:
+				run.remove(element_text)
+				preceding_run.append(element_text)
+			paragraph.insert(run_pos, preceding_run)
+			run_pos += 1
+		paragraph.insert(run_pos, makeelement('commentRangeStart',
+		attributes={'id': id_number}))
+	if end.tag == '{' + NSPREFIXES['w'] + '}p': # Insert commentRangeEnd element
+		end.append(makeelement('commentRangeEnd',
+		attributes={'id': id_number}))
+		run = makeelement('r')
+		end.append(run)
+		rPr = makeelement('rPr')
+		run.append(rPr)
+		rPr.append(makeelement('rStyle',
+		attributes={'val': 'CommentReference'}))
+		run.append(makeelement('commentReference',
+		attributes={'id': id_number}))
+	elif end.tag == '{' + NSPREFIXES['w'] + '}r':
+		paragraph = end.getparent()
+		pos = paragraph.index(end)
+		paragraph.insert(pos + 1, makeelement('commentRangeEnd',
+		attributes={'id': id_number}))
+		run = makeelement('r')
+		end.append(run)
+		rPr = makeelement('rPr')
+		run.append(rPr)
+		rPr.append(makeelement('rStyle',
+		attributes={'val': 'CommentReference'}))
+		run.append(makeelement('commentReference',
+		attributes={'id': id_number}))
+	elif end.tag == '{' + NSPREFIXES['w'] + '}t':
+		run = end.getparent()
+		paragraph = run.getparent()
+		text_pos = run.index(end)
+		run_pos = paragraph.index(run)
+		text_elements = [child for child in run.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}t']
+		if text_pos != 0:
+			preceding_run = makeelement('r')
+			for element_text in text_elements[:text_pos - 1]:
+				run.remove(element_text)
+				preceding_run.append(element_text)
+			paragraph.insert(run_pos, preceding_run)
+			run_pos += 1
+		paragraph.insert(run_pos + 1, makeelement('commentRangeEnd',
+		attributes={'id': id_number}))
+		run = makeelement('r')
+		paragraph.insert(run_pos + 2, run)
+		rPr = makeelement('rPr')
+		run.append(rPr)
+		rPr.append(makeelement('rStyle',
+		attributes={'val': 'CommentReference'}))
+		run.append(makeelement('commentReference',
+		attributes={'id': id_number}))
+	date = datetime.datetime.now()              # Content for comments.xml
+	daystr = str(date.day)
+	hourstr = str(date.hour)
+	minutestr = str(date.minute)
+	if len(daystr) == 1:
+		daystr = '0' + daystr
+	if len(hourstr) == 1:
+		hourstr = '0' + hourstr
+	if len(minutestr) == 1:
+		minutestr = '0' + minutestr
+	comment = makeelement('comment', attributes={'id': id_number, 
+	'author': username, 'date': '{0}-{1}-{2}T{3}:{4}:00Z'.format(str(date.year),
+	str(date.month), str(date.day), str(date.hour), str(date.minute)),
+	'initials': initials})
+	para = makeelement('p')
+	comment.append(para)
+	pPr = makeelement('pPr')
+	para.append(pPr)
+	pPr.append(makeelement('pStyle', attributes={'val': 'CommentText'}))
+	run_reference = makeelement('r')
+	para.append(run_reference)
+	rPr = makeelement('rPr')
+	run_reference.append(rPr)
+	rPr.append(makeelement('rStyle', attributes={'val': 'CommentReference'}))
+	run_reference.append(makeelement('annotationRef'))
+	run_text = makeelement('r')
+	para.append(run_text)
+	run_text.append(makeelement('t', tagtext=text))
+	document.comments.append(comment)

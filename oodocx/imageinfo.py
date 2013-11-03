@@ -37,6 +37,5 @@ def image_info(fname):
 		except Exception: #IGNORE:W0703
 			return
 	else:
-		print(head[:4])
 		return
 	return width, height
