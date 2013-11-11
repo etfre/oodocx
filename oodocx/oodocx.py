@@ -928,12 +928,13 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
 			i += 1
 		table.append(row)
 	return table
-def picture(document, picpath, picdescription, pixelwidth=None, pixelheight=None, nochangeaspect=True, nochangearrowheads=True):
-	'''Take a relationshiplist, picture file name, and return a paragraph containing the image
-	and an updated relationshiplist'''
+def picture(document, picpath, picdescription='', pixelwidth=None, pixelheight=None, nochangeaspect=True, nochangearrowheads=True):
+	'''Take a document and a picture file path, and return a paragraph
+	containing the image. The document argument is necessary because we
+	need to update the Relationships element when a picture is added'''
 	# http://openxmldeveloper.org/articles/462.aspx
 	# Create an image. Size may be specified, otherwise it will based on the
-	# pixel size of image. Return a paragraph containing the picture'''
+	# pixel size of image.
 	# Copy the file into the media dir
 	media_dir = os.path.join(WRITE_DIR, 'word', 'media')
 	if not os.path.isdir(media_dir):
@@ -1067,6 +1068,42 @@ def append_text(element, text):
 			element.append(last_text)
 	elif element.tag == '{' + NSPREFIXES['w'] + '}t':
 		element.text += text
+		
+def numbered_list(start, end=None):
+	if end is None:
+		end = start
+	if start.tag != '{' + NSPREFIXES['w'] + '}p':
+		raise ValueError('start argument must be a paragraph element')
+	if end.tag != '{' + NSPREFIXES['w'] + '}p':
+		raise ValueError('end argument must be a paragraph element')
+	if start.getparent().index(start) > end.getparent().index(end):
+		raise ValueError('end paragraph cannot precede start paragraph')
+	para_list = [para for para in start.getparent().getchildren() if \
+	(para.getparent().index(para) in range(start.getparent().index(start),
+	end.getparent().index(end) + 1))]
+	numId_set = set()
+	for element in start.getparent().iter():
+		if element.tag == '{' + NSPREFIXES['w'] + '}numId':
+			for k, v in element.items():
+				if k == '{' + NSPREFIXES['w'] + '}val':
+					numId_set.add(v)
+	numId_value = '1'
+	while numId_value in numId_set:
+		numId_value = str(int(numId_value) + 1)
+	for para in para_list:
+		pPr = makeelement('pPr')
+		for child in para.getchildren():
+			if child.tag == '{' + NSPREFIXES['w'] + '}pPr':
+				pPr = child
+				break
+		if pPr.getparent() is None:
+			para.insert(0, pPr)
+		numPr = makeelement('numPr')
+		ilvl = makeelement('ilvl', attributes={'val': '0'})
+		numId = makeelement('numId', attributes={'val': numId_value})
+		numPr.append(ilvl)
+		numPr.append(numId)
+		pPr.insert(0, numPr)	
 
 def add_comment(document, text, start, end=None, username='', initials=''):
 	if end is None:
