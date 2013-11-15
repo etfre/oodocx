@@ -1218,7 +1218,7 @@ def add_comment(document, text, start, end=None, username='', initials=''):
 		minutestr = '0' + minutestr
 	comment = makeelement('comment', attributes={'id': id_number, 
 	'author': username, 'date': '{0}-{1}-{2}T{3}:{4}:00Z'.format(str(date.year),
-	str(date.month), str(date.day), str(date.hour), str(date.minute)),
+	str(date.month), daystr, hourstr, minutestr),
 	'initials': initials})
 	para = makeelement('p')
 	comment.append(para)
