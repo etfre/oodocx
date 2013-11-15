@@ -96,14 +96,11 @@ class Docx():
 			self.xmlfiles[self.contenttypes] = '[Content_Types].xml'
 		for root, dirs, filenames in os.walk(WRITE_DIR):
 			for file in filenames:
-				if file != 'theme1.xml' and (file[-4:] == '.xml'
-				or file[-5:] == '.rels'):
-					#FIXME: theme1.xml raises a UnicodeDecodeError
+				if file[-4:] == '.xml' or file[-5:] == '.rels':
 					absdir = os.path.abspath(os.path.join(root, file))
-					docstr = open(absdir, 'r')
+					docstr = open(absdir, 'r', encoding='utf8')
 					relpath = os.path.relpath(absdir, WRITE_DIR)
-					xmlfile = (etree.fromstring(docstr.read()
-					.encode(encoding='UTF-8')))
+					xmlfile = (etree.fromstring(docstr.read().encode()))
 					if file == '[Content_Types].xml':
 						self.contenttypes = xmlfile
 						self.xmlfiles[self.contenttypes] = relpath
@@ -665,7 +662,6 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None, attrnspref
 				attributenamespace = ''
 		else:
 			attributenamespace = '{'+NSPREFIXES[attrnsprefix]+'}'
-		
 		for tagattribute in attributes:
 			newelement.set(attributenamespace+tagattribute, attributes[tagattribute])
 	if tagtext is not None and len(tagtext):
@@ -709,10 +705,10 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
 		if isinstance(pprops, dict):
 			for tag, atts in pprops.items():
 				pPr.append(makeelement(tag, attributes=atts))
+		elif isinstance(pprops, str):
+			pPr.append(makeelement(pprops))
 		else:
-			raise TypeError("pprops argument must be of 'dict' type")
-		pStyle = makeelement('pStyle', attributes={'val': style})
-		pPr.append(pStyle)
+			raise TypeError("pprops argument must be of 'dict' or 'str' type")
 	# Add the text to the run, and the run to the paragraph
 	paragraph.append(pPr)
 	for t in text:
@@ -722,8 +718,10 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
 			if isinstance(rprops, dict):
 				for tag, atts in rprops.items():
 					rPr.append(makeelement(tag, attributes=atts))
+			elif isinstance(rprops, str):
+				rPr.append(makeelement(rprops))
 			else:
-				raise TypeError("rprops argument must be of 'dict' type")
+				raise TypeError("rprops argument must be of 'dict' or 'str' type")
 		run.append(rPr)
 		# Apply styles
 		if t[1].find('b') > -1:
