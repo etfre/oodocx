@@ -229,7 +229,7 @@ class Docx():
 								start + len(subelement.text),
 								runtext, position]
 								position += 1
-						start += len(subelement.text)
+								start += len(subelement.text)
 				match_slices = \
 				[match.span() for match in re.finditer(searchre, paratext)]
 				shiftsum = 0
