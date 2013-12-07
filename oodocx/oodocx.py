@@ -18,6 +18,7 @@ import datetime
 import os
 import collections
 from lxml import etree
+import xml.etree.ElementTree as ET
 from oodocx import imageinfo
 from oodocx import write_files
 
@@ -57,7 +58,9 @@ NSPREFIXES = {
 	'pr':  'http://schemas.openxmlformats.org/package/2006/relationships',
 	# Dublin Core document properties
 	'dcmitype': 'http://purl.org/dc/dcmitype/',
-	'dcterms':  'http://purl.org/dc/terms/'}
+	'dcterms':  'http://purl.org/dc/terms/',
+	# Special xml namespace
+	'xml': 'http://www.w3.org/XML/1998/namespace'}
 	
 COLOR_MAP = {
 	'black': '000000',
@@ -96,11 +99,14 @@ class Docx():
 			self.xmlfiles[self.contenttypes] = '[Content_Types].xml'
 		for root, dirs, filenames in os.walk(WRITE_DIR):
 			for file in filenames:
-				if file[-4:] == '.xml' or file[-5:] == '.rels':
+				if file != 'theme1.xml' and (file[-4:] == '.xml'
+				or file[-5:] == '.rels'):
+					#FIXME: theme1.xml raises a UnicodeDecodeError
 					absdir = os.path.abspath(os.path.join(root, file))
-					docstr = open(absdir, 'r', encoding='utf8')
+					docstr = open(absdir, 'r')
 					relpath = os.path.relpath(absdir, WRITE_DIR)
-					xmlfile = (etree.fromstring(docstr.read().encode()))
+					xmlfile = (etree.fromstring(docstr.read()
+					.encode(encoding='UTF-8')))
 					if file == '[Content_Types].xml':
 						self.contenttypes = xmlfile
 						self.xmlfiles[self.contenttypes] = relpath
@@ -157,19 +163,14 @@ class Docx():
 						self.xmlfiles[self.webSettings] = relpath	
 							
 	def get_body(self):
-		return self.document.xpath('/w:document/w:body', namespaces=NSPREFIXES)[0]
+		return self.document.xpath('/w:document/w:body',
+		namespaces=NSPREFIXES)[0]
 		
-	def search(self, search, result_type='text', advanced=False):
+	def search(self, search, result_type='text', ignore_runs=True):
 		'''Search for a regex, returns element object or None'''
 		searchre = re.compile(search)
 		result = None
-		if not advanced:
-			for element in self.document.iter():
-				if (element.tag == '{%s}t' % NSPREFIXES['w'] and element.text and
-				searchre.search(element.text)):
-					result = element
-					break
-		else:
+		if ignore_runs:
 			para_list = [child for child in self.document.iter() if
 			child.tag == '{%s}p' % NSPREFIXES['w']]
 			text_positions = []
@@ -188,91 +189,117 @@ class Docx():
 					if match.start() in range(value[0], value[1] + 1):
 						result = value[2]
 						break
+		else:
+			for element in self.document.iter():
+				if (element.tag == '{%s}t' % NSPREFIXES['w'] and element.text and
+				searchre.search(element.text)):
+					result = element
+					break
 		if result is not None:
 			if result_type.lower() == 'paragraph':
 				while not result.tag == '{%s}p' % NSPREFIXES['w']:
 					result = result.getparent()
 			elif result_type.lower() == 'run':
 				while not result.tag == '{%s}r' % NSPREFIXES['w']:
-					result = result.getparent()
+					result = result.getparent()	
 		return result
 		
-	def replace(self, search, replace, advanced=False):
+	def replace(self, search, replace, ignore_runs=True):
 		'''Replace all occurrences of string with a different string.
 		If advanced is True, the function will ignore separate text
 		and run elements and instead search each raw paragraph text
 		as a single string'''
 		searchre = re.compile(search)
-		if not advanced:
-			for element in self.document.iter():
-				if (element.tag == '{%s}t' % NSPREFIXES['w'] and element.text and
-				searchre.search(element.text)):
-					element.text = re.sub(search, replace, element.text)
-		else:
+		if ignore_runs:
 			para_list = [child for child in self.document.iter() if
 			child.tag == '{%s}p' % NSPREFIXES['w']]
 			for para in para_list:
 				paratext = ''
 				rundict = collections.OrderedDict()
 				start = 0
-				position = 0
 				for element in para.iter():
 					if element.tag == '{%s}r' % NSPREFIXES['w']:
 						merge_text(element)
 						runtext = ''
 						for subelement in element.iter(): #run
-							if subelement.tag == \
-							'{%s}t' % NSPREFIXES['w'] and subelement.text:
+							if subelement.tag == (
+							'{%s}t' % NSPREFIXES['w'] and subelement.text):
 								paratext += subelement.text
 								runtext += subelement.text
 								rundict[element] = [start,
 								start + len(subelement.text),
-								runtext, position]
-								position += 1
-								start += len(subelement.text)
-				match_slices = \
-				[match.span() for match in re.finditer(searchre, paratext)]
-				shiftsum = 0
-				for match in match_slices:
-					match0 = match[0] + shiftsum
-					match1 = match[1] + shiftsum
-					shift = len(replace) - (match1 - match0)
-					shiftsum += shift
-					runs_to_modify = collections.OrderedDict()
-					for run, text in rundict.items():
-						if ((match0 < text[1] and match1 > text[0]) or
-							(match0 >= text[0] and match1 <= text[1])):
-							runs_to_modify[run] = text
-						elif runs_to_modify:
-							break
-					for index, (run, text) in \
-					enumerate(runs_to_modify.items()):
-						if index == 0:
-							newstring = (text[2][:match0 - text[0]]
-							+ replace + text[2][match1 - text[0]:])
-							text_element = run.find('{%s}t' % NSPREFIXES['w'])
-							text_element.text = newstring
-							text[1] += shift
-							text[2] = newstring
-						elif index < len(runs_to_modify) - 1:
-							para.remove(run)
-						else:
-							newstring = text[2][match1 - text[0]:]
-							text_element = run.find('{%s}t' % NSPREFIXES['w'])
-							text_element.text = newstring
-							text[0] += shift
-							text[1] += len(newstring)
-							text[2] = newstring
-					last_position = (list(runs_to_modify.items())
-					[len(runs_to_modify) - 1][1][3])
-					try:
-						for key, value in \
-						list(rundict.items())[last_position + 1:]:
-							rundict[key] = [element+shift if i in (0, 1) else \
-							element for i, element in enumerate(rundict[key])]
-					except IndexError:
-						pass
-						
+								runtext]
+						start += len(subelement.text)
+				match_slices = [
+				match.span() for match in re.finditer(searchre, paratext)] 
+				preliminary_runs = collections.OrderedDict()
+				runs_to_exclude = set()
+				for run, text_info in rundict.items():
+					for match in match_slices:
+						if ((match[0] < text_info[1] and
+						match[1] > text_info[0]) or
+						(match[0] >= text_info[0] and
+						match[1] <= text_info[1])):
+							preliminary_runs[run] = text_info
+							if (match[0] < text_info[0] and
+							match[1] > text_info[1]):
+								runs_to_exclude.add(run)
+				runs_to_modify = collections.OrderedDict()
+				for run, text_info in list(preliminary_runs.items()):
+					if run not in runs_to_exclude:
+						runs_to_modify[run] = text_info
+					else:
+						previous_run = list(runs_to_modify.items())[-1][0]
+						previous_text_info = list(
+						runs_to_modify.items())[-1][1]
+						previous_text = previous_run.find(
+						'{%s}t' % NSPREFIXES['w'])
+						previous_text.text += text_info[2]
+						previous_text_info[1] += len(text_info[2])
+						previous_text_info[2] += text_info[2]
+						para.remove(run)
+				for index, (run, text_info) in enumerate(
+				runs_to_modify.items()):
+					if index > 0:
+						runshift = -overflow
+					else:
+						runshift = 0
+					overflow = 0
+					text_element = run.find('{%s}t' % NSPREFIXES['w'])
+					newstring = text_element.text
+					for match_index, match in enumerate(match_slices):
+						# Difference between replace and search. Positive if
+						# replace is greater than search, negative if replace
+						# is less than search. Zero otherwise.
+						difference = (len(replace) - 
+						(match_slices[match_index][1] -
+						match_slices[match_index][0]))
+						if match[0] in range(text_info[0], text_info[1]):
+							newstring = (newstring[:match[0] + runshift -
+							text_info[0]] + replace + 
+							text_element.text[match[1] - text_info[0]:])
+							try:
+								if ' ' in (newstring[0], newstring[-1]):
+									text_element.set('{' + NSPREFIXES['xml'] +
+									'}space', 'preserve')
+							except IndexError:
+								pass
+							runshift += difference
+							if match[1] > text_info[1]:
+								overflow = match[1] - text_info[1]
+								if index < len(runs_to_modify) - 1:
+									next_run = list(
+									runs_to_modify.keys())[index + 1]
+									next_text = next_run.find(
+									'{%s}t' % NSPREFIXES['w'])
+									next_text.text = next_text.text[overflow:]					
+					text_element.text = newstring
+		else:
+			for element in self.document.iter():
+				if (element.tag == '{%s}t' % NSPREFIXES['w'] and element.text
+				and searchre.search(element.text)):
+					element.text = re.sub(search, replace, element.text)
+					
 	def clean(self):
 		# Clean empty text and run tags
 		for t in ('t', 'r'):
@@ -662,6 +689,7 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None, attrnspref
 				attributenamespace = ''
 		else:
 			attributenamespace = '{'+NSPREFIXES[attrnsprefix]+'}'
+		
 		for tagattribute in attributes:
 			newelement.set(attributenamespace+tagattribute, attributes[tagattribute])
 	if tagtext is not None and len(tagtext):
@@ -705,10 +733,10 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
 		if isinstance(pprops, dict):
 			for tag, atts in pprops.items():
 				pPr.append(makeelement(tag, attributes=atts))
-		elif isinstance(pprops, str):
-			pPr.append(makeelement(pprops))
 		else:
-			raise TypeError("pprops argument must be of 'dict' or 'str' type")
+			raise TypeError("pprops argument must be of 'dict' type")
+		pStyle = makeelement('pStyle', attributes={'val': style})
+		pPr.append(pStyle)
 	# Add the text to the run, and the run to the paragraph
 	paragraph.append(pPr)
 	for t in text:
@@ -718,10 +746,8 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
 			if isinstance(rprops, dict):
 				for tag, atts in rprops.items():
 					rPr.append(makeelement(tag, attributes=atts))
-			elif isinstance(rprops, str):
-				rPr.append(makeelement(rprops))
 			else:
-				raise TypeError("rprops argument must be of 'dict' or 'str' type")
+				raise TypeError("rprops argument must be of 'dict' type")
 		run.append(rPr)
 		# Apply styles
 		if t[1].find('b') > -1:
@@ -778,6 +804,7 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
 		paragraph.append(run)
 	# Return the combined paragraph
 	return paragraph
+	
 def heading(headingtext, headinglevel=1, lang='en'):
 	'''Make a new heading, return the heading element'''
 	lmap = {'en': 'Heading', 'it': 'Titolo'}
@@ -1218,8 +1245,7 @@ def add_comment(document, text, start, end=None, username='', initials=''):
 		minutestr = '0' + minutestr
 	comment = makeelement('comment', attributes={'id': id_number, 
 	'author': username, 'date': '{0}-{1}-{2}T{3}:{4}:00Z'.format(str(date.year),
-	str(date.month), daystr, hourstr, minutestr),
-	'initials': initials})
+	str(date.month), daystr, hourstr, minutestr), 'initials': initials})
 	para = makeelement('p')
 	comment.append(para)
 	pPr = makeelement('pPr')
