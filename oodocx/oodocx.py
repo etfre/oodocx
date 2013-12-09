@@ -205,7 +205,10 @@ class Docx():
 		'''Replace all occurrences of string with a different string.
 		If ignore_runs is true, the function will ignore separate run
 		and text elements and instead search each raw paragraph text
-		content as a single string'''
+		content as a single string. Note that this will ignore
+		formatting elements within a paragraph such as tabs, which
+		may cause unexpected results. Set ignore_runs to false if you
+		want a more conservative, stable search.'''
 		searchre = re.compile(search)
 		if ignore_runs:
 			para_list = [child for child in self.document.iter() if
@@ -216,7 +219,6 @@ class Docx():
 				start = 0
 				for element in para.iter():
 					if element.tag == '{%s}r' % NSPREFIXES['w']:
-						merge_text(element)
 						runtext = []
 						for subelement in element.iter(): #run
 							if (subelement.tag == '{%s}t' % NSPREFIXES['w'] and
