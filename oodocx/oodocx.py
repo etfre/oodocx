@@ -17,9 +17,9 @@ import time
 import datetime
 import os
 import collections
+import stat
 from lxml import etree
-import xml.etree.ElementTree as ET
-from oodocx import imageinfo
+from oodocx import helper_functions
 from oodocx import write_files
 
 
@@ -78,90 +78,89 @@ COLOR_MAP = {
 
 class Docx():
 	def __init__(self, docx=''):
-                # dictionary to connect element objects to their path in the docx file
-                self.xmlfiles = {}
-                if os.path.isdir(WRITE_DIR):
-                        shutil.rmtree(WRITE_DIR)
-                # Declare empty attributes, which may or may not be assigned to xml
-                # elements later
-                self.comments = None
-                # self.xmlfiles[self.comments] = os.path.join('word/comments.xml')
-                if docx:
-                        os.mkdir(WRITE_DIR)
-                        mydoc = zipfile.ZipFile(docx)
-                        for filepath in mydoc.namelist():
-                                mydoc.extractall(WRITE_DIR)
-                else:
-                        shutil.copytree(TEMPLATE_DIR, WRITE_DIR)
-                        self.rels = write_files.write_rels()
-                        self.xmlfiles[self.rels] = os.path.join('_rels', '.rels')
-                        self.contenttypes = write_files.write_content_types()
-                        self.xmlfiles[self.contenttypes] = '[Content_Types].xml'
-                for root, dirs, filenames in os.walk(WRITE_DIR):
-                        for file in filenames:
-                                if file[-4:] == '.xml' or file[-5:] == '.rels':
-                                        absdir = os.path.abspath(os.path.join(root, file))
-                                        docstr = open(absdir, 'r', encoding='utf8')
-                                        relpath = os.path.relpath(absdir, WRITE_DIR)
-                                        xmlfile = (etree.fromstring(docstr.read().encode()))
-                                        if file == '[Content_Types].xml':
-                                                self.contenttypes = xmlfile
-                                                self.xmlfiles[self.contenttypes] = relpath
-                                                # update self.contenttypes, as needed
-                                                filetypes = {'gif': 'image/gif',
-                                                'jpeg': 'image/jpeg',
-                                                'jpg': 'image/jpeg',
-                                                'png': 'image/png',
-                                                'rels': 'application/vnd.openxmlformats-package.relationships+xml',
-                                                'xml': 'application/xml'}
-                                                default_elements = [child for child
-                                                in self.contenttypes.getchildren()
-                                                if 'Default' in child.tag]
-                                                for key, value in filetypes.items():
-                                                        missing_filetype = True
-                                                        for child in default_elements:
-                                                                if key == child.items()[0][1]:
-                                                                        missing_filetype = False
-                                                        if missing_filetype:
-                                                                default_element = makeelement('Default',
-                                                                nsprefix=None,
-                                                                attributes={'Extension': key,
-                                                                'ContentType': value})
-                                                                self.contenttypes.append(default_element)
-                                        elif file == 'app.xml':
-                                                self.app = xmlfile
-                                                self.xmlfiles[self.app] = relpath
-                                        elif file == 'comments.xml':
-                                                self.comments = xmlfile
-                                                self.xmlfiles[self.comments] = relpath
-                                        elif file == 'core.xml':
-                                                self.core = xmlfile
-                                                self.xmlfiles[self.core] = relpath
-                                        elif file == 'document.xml':
-                                                self.document = xmlfile
-                                                self.xmlfiles[self.document] = relpath
-                                        elif file == 'document.xml.rels':
-                                                self.relationships = xmlfile
-                                                self.xmlfiles[self.relationships] = relpath        
-                                        elif file == 'fontTable.xml':
-                                                self.fontTable = xmlfile
-                                                self.xmlfiles[self.fontTable] = relpath
-                                        elif file == 'settings.xml':
-                                                self.styles = xmlfile
-                                                self.xmlfiles[self.styles] = relpath                                                
-                                        elif file == 'styles.xml':
-                                                self.styles = xmlfile
-                                                self.xmlfiles[self.styles] = relpath
-                                        elif file == 'stylesWithEffects.xml':
-                                                self.stylesWithEffects = xmlfile
-                                                self.xmlfiles[self.stylesWithEffects] = relpath                
-                                        elif file == 'webSettings.xml':
-                                                self.webSettings = xmlfile
-                                                self.xmlfiles[self.webSettings] = relpath	
+		# dictionary to connect element objects to their path in the docx file
+		self.xmlfiles = {}
+		if os.path.isdir(WRITE_DIR):
+			shutil.rmtree(WRITE_DIR)
+		# Declare empty attributes, which may or may not be assigned to xml
+		# elements later
+		self.comments = None
+		# self.xmlfiles[self.comments] = os.path.join('word/comments.xml')
+		if docx:
+			os.mkdir(WRITE_DIR)
+			mydoc = zipfile.ZipFile(docx)
+			for filepath in mydoc.namelist():
+				mydoc.extractall(WRITE_DIR)
+		else:
+			shutil.copytree(TEMPLATE_DIR, WRITE_DIR)
+			self.rels = write_files.write_rels()
+			self.xmlfiles[self.rels] = os.path.join('_rels', '.rels')
+			self.contenttypes = write_files.write_content_types()
+			self.xmlfiles[self.contenttypes] = '[Content_Types].xml'
+		for root, dirs, filenames in os.walk(WRITE_DIR):
+			for file in filenames:
+				if file[-4:] == '.xml' or file[-5:] == '.rels':
+					absdir = os.path.abspath(os.path.join(root, file))
+					docstr = open(absdir, 'r', encoding='utf8')
+					relpath = os.path.relpath(absdir, WRITE_DIR)
+					xmlfile = (etree.fromstring(docstr.read().encode()))
+					if file == '[Content_Types].xml':
+						self.contenttypes = xmlfile
+						self.xmlfiles[self.contenttypes] = relpath
+						# update self.contenttypes, as needed
+						filetypes = {'gif':  'image/gif',
+						'jpeg': 'image/jpeg',
+						'jpg':  'image/jpeg',
+						'png':  'image/png',
+						'rels': 'application/vnd.openxmlformats-package.relationships+xml',
+						'xml':  'application/xml'}
+						default_elements = [child for child
+						in self.contenttypes.getchildren()
+						if 'Default' in child.tag] 
+						for key, value in filetypes.items():
+							missing_filetype = True
+							for child in default_elements:
+								if key == child.items()[0][1]:
+									missing_filetype = False
+							if missing_filetype:
+								default_element = makeelement('Default',
+								nsprefix=None,
+								attributes={'Extension': key,
+								'ContentType': value})
+								self.contenttypes.append(default_element)
+					elif file == 'app.xml':
+						self.app = xmlfile
+						self.xmlfiles[self.app] = relpath
+					elif file == 'comments.xml':
+						self.comments = xmlfile
+						self.xmlfiles[self.comments] = relpath
+					elif file == 'core.xml': 
+						self.core = xmlfile
+						self.xmlfiles[self.core] = relpath
+					elif file == 'document.xml': 
+						self.document = xmlfile
+						self.xmlfiles[self.document] = relpath
+					elif file == 'document.xml.rels': 
+						self.relationships = xmlfile
+						self.xmlfiles[self.relationships] = relpath	
+					elif file == 'fontTable.xml': 
+						self.fontTable = xmlfile
+						self.xmlfiles[self.fontTable] = relpath
+					elif file == 'settings.xml': 
+						self.styles = xmlfile
+						self.xmlfiles[self.styles] = relpath						
+					elif file == 'styles.xml': 
+						self.styles = xmlfile
+						self.xmlfiles[self.styles] = relpath
+					elif file == 'stylesWithEffects.xml': 
+						self.stylesWithEffects = xmlfile
+						self.xmlfiles[self.stylesWithEffects] = relpath		
+					elif file == 'webSettings.xml': 
+						self.webSettings = xmlfile
+						self.xmlfiles[self.webSettings] = relpath	
 							
 	def get_body(self):
-		return self.document.xpath('/w:document/w:body',
-		namespaces=NSPREFIXES)[0]
+		return self.document.xpath('/w:document/w:body', namespaces=NSPREFIXES)[0]
 		
 	def search(self, search, result_type='text', ignore_runs=True):
 		'''Search for a regex, returns element object or None'''
@@ -171,16 +170,17 @@ class Docx():
 			para_list = [child for child in self.document.iter() if
 			child.tag == '{%s}p' % NSPREFIXES['w']]
 			text_positions = []
-			raw_text = ''
+			raw_text = []
 			start = 0
 			for para in para_list:
 				for element in para.iter():
-					if element.tag == '{%s}t' % NSPREFIXES['w'] and element.text:
-						raw_text += element.text
+					if (element.tag == '{%s}t' % NSPREFIXES['w'] and 
+					element.text):
+						raw_text.append(element.text)
 						text_positions.append((start,
 						start + len(element.text) - 1, element))
 						start += len(element.text)
-			match = searchre.search(raw_text)
+			match = searchre.search(''.join(raw_text))
 			if match:
 				for value in text_positions:
 					if match.start() in range(value[0], value[1] + 1):
@@ -188,8 +188,8 @@ class Docx():
 						break
 		else:
 			for element in self.document.iter():
-				if (element.tag == '{%s}t' % NSPREFIXES['w'] and element.text and
-				searchre.search(element.text)):
+				if (element.tag == '{%s}t' % NSPREFIXES['w'] and element.text
+				and searchre.search(element.text)):
 					result = element
 					break
 		if result is not None:
@@ -203,32 +203,31 @@ class Docx():
 		
 	def replace(self, search, replace, ignore_runs=True):
 		'''Replace all occurrences of string with a different string.
-		If advanced is True, the function will ignore separate text
-		and run elements and instead search each raw paragraph text
-		as a single string'''
+		If ignore_runs is true, the function will ignore separate run
+		and text elements and instead search each raw paragraph text
+		content as a single string'''
 		searchre = re.compile(search)
 		if ignore_runs:
 			para_list = [child for child in self.document.iter() if
 			child.tag == '{%s}p' % NSPREFIXES['w']]
 			for para in para_list:
-				paratext = ''
+				paratext = []
 				rundict = collections.OrderedDict()
 				start = 0
 				for element in para.iter():
 					if element.tag == '{%s}r' % NSPREFIXES['w']:
 						merge_text(element)
-						runtext = ''
+						runtext = []
 						for subelement in element.iter(): #run
-							if subelement.tag == (
-							'{%s}t' % NSPREFIXES['w'] and subelement.text):
-								paratext += subelement.text
-								runtext += subelement.text
-								rundict[element] = [start,
-								start + len(subelement.text),
-								runtext]
-						start += len(subelement.text)
-				match_slices = [
-				match.span() for match in re.finditer(searchre, paratext)] 
+							if (subelement.tag == '{%s}t' % NSPREFIXES['w'] and
+							subelement.text):
+								paratext.append(subelement.text)
+								runtext.append(subelement.text)
+								rundict[element] = [start, start +
+								len(subelement.text), ''.join(runtext)]
+								start += len(subelement.text)
+				match_slices = [match.span() for match in
+				re.finditer(searchre, ''.join(paratext))]
 				preliminary_runs = collections.OrderedDict()
 				runs_to_exclude = set()
 				for run, text_info in rundict.items():
@@ -245,6 +244,8 @@ class Docx():
 				for run, text_info in list(preliminary_runs.items()):
 					if run not in runs_to_exclude:
 						runs_to_modify[run] = text_info
+					# merge text from runs contained entirely inside
+					# matches with preceding run
 					else:
 						previous_run = list(runs_to_modify.items())[-1][0]
 						previous_text_info = list(
@@ -255,22 +256,19 @@ class Docx():
 						previous_text_info[1] += len(text_info[2])
 						previous_text_info[2] += text_info[2]
 						para.remove(run)
+				overflow = 0
 				for index, (run, text_info) in enumerate(
 				runs_to_modify.items()):
-					if index > 0:
-						runshift = -overflow
-					else:
-						runshift = 0
+					runshift = -overflow
 					overflow = 0
 					text_element = run.find('{%s}t' % NSPREFIXES['w'])
 					newstring = text_element.text
-					for match_index, match in enumerate(match_slices):
-						# Difference between replace and search. Positive if
-						# replace is greater than search, negative if replace
-						# is less than search. Zero otherwise.
-						difference = (len(replace) - 
-						(match_slices[match_index][1] -
-						match_slices[match_index][0]))
+					for match in match_slices:
+						# Difference between replace and search length.
+						# Executes for each match in match_slices to
+						# account for potential difference in lengths
+						# of matches due to regex search argument
+						difference = len(replace) - (match[1] - match[0])
 						if match[0] in range(text_info[0], text_info[1]):
 							newstring = (newstring[:match[0] + runshift -
 							text_info[0]] + replace + 
@@ -296,16 +294,16 @@ class Docx():
 				if (element.tag == '{%s}t' % NSPREFIXES['w'] and element.text
 				and searchre.search(element.text)):
 					element.text = re.sub(search, replace, element.text)
-					
+						
 	def clean(self):
-		# Clean empty text and run tags
+		'''Remove empty text and run elements'''
 		for t in ('t', 'r'):
-			rmlist = []
+			remove_list = []
 			for element in self.document.iter():
 				if (element.tag == '{%s}%s' % (NSPREFIXES['w'], t) and
 				not element.text and not len(element)):
-					rmlist.append(element)
-			for element in rmlist:
+					remove_list.append(element)
+			for element in remove_list:
 				element.getparent().remove(element)
 		
 	def add_style(self, styleId, type, default=None, name=None):
@@ -404,8 +402,7 @@ class Docx():
 		# Since a single sentence might be spread over multiple text elements, iterate through each
 		# paragraph, appending all text (t) children to that paragraph's text.
 		for para in paralist:
-			paratext = u''
-			# Loop through each paragraph
+			paratext = ''
 			for element in para.iter():
 				# Find t (text) elements
 				if element.tag == '{' + NSPREFIXES['w'] + '}t':
@@ -414,7 +411,7 @@ class Docx():
 				elif element.tag == '{' + NSPREFIXES['w'] + '}tab':
 					paratext = paratext + '\t'
 			# Add our completed paragraph text to the list of paragraph text
-			if not len(paratext) == 0:
+			if len(paratext):
 				paratextlist.append(paratext)
 		return paratextlist
 						
@@ -441,8 +438,9 @@ class Docx():
 				docxfile.write(templatefile, archivename)
 		docxfile.close()
 		os.chdir(prev_dir)  # restore previous working dir
-		shutil.rmtree(WRITE_DIR)
-
+		shutil.rmtree(WRITE_DIR, onerror=helper_functions.remove_readonly)
+		
+	
 def merge_text(run):
 	runtext = ''
 	first = True
@@ -686,7 +684,6 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None, attrnspref
 				attributenamespace = ''
 		else:
 			attributenamespace = '{'+NSPREFIXES[attrnsprefix]+'}'
-		
 		for tagattribute in attributes:
 			newelement.set(attributenamespace+tagattribute, attributes[tagattribute])
 	if tagtext is not None and len(tagtext):
@@ -730,10 +727,10 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
 		if isinstance(pprops, dict):
 			for tag, atts in pprops.items():
 				pPr.append(makeelement(tag, attributes=atts))
+		elif isinstance(pprops, str):
+			pPr.append(makeelement(pprops))
 		else:
-			raise TypeError("pprops argument must be of 'dict' type")
-		pStyle = makeelement('pStyle', attributes={'val': style})
-		pPr.append(pStyle)
+			raise TypeError("pprops argument must be of 'dict' or 'str' type")
 	# Add the text to the run, and the run to the paragraph
 	paragraph.append(pPr)
 	for t in text:
@@ -743,8 +740,10 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
 			if isinstance(rprops, dict):
 				for tag, atts in rprops.items():
 					rPr.append(makeelement(tag, attributes=atts))
+			elif isinstance(rprops, str):
+				rPr.append(makeelement(rprops))
 			else:
-				raise TypeError("rprops argument must be of 'dict' type")
+				raise TypeError("rprops argument must be of 'dict' or 'str' type")
 		run.append(rPr)
 		# Apply styles
 		if t[1].find('b') > -1:
@@ -801,7 +800,6 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
 		paragraph.append(run)
 	# Return the combined paragraph
 	return paragraph
-	
 def heading(headingtext, headinglevel=1, lang='en'):
 	'''Make a new heading, return the heading element'''
 	lmap = {'en': 'Heading', 'it': 'Titolo'}
@@ -950,6 +948,7 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
 			i += 1
 		table.append(row)
 	return table
+	
 def picture(document, picpath, picdescription='', pixelwidth=None, pixelheight=None, nochangeaspect=True, nochangearrowheads=True):
 	'''Take a document and a picture file path, and return a paragraph
 	containing the image. The document argument is necessary because we
@@ -965,7 +964,7 @@ def picture(document, picpath, picdescription='', pixelwidth=None, pixelheight=N
 	shutil.copyfile(picname, os.path.join(media_dir, picname))
 	# Check if the user has specified a size
 	if not pixelwidth or not pixelheight:
-		pixelwidth, pixelheight = imageinfo.image_info(picpath)
+		pixelwidth, pixelheight = helper_functions.get_image_size(picpath)
 	# OpenXML measures on-screen objects in English Metric Units
 	# 1cm = 36000 EMUs
 	emuperpixel = 12700
@@ -1094,17 +1093,19 @@ def append_text(element, text):
 def numbered_list(start, end=None):
 	if end is None:
 		end = start
+	body = start.getparent()
+	if body != end.getparent():
+		raise ValueError('start and end elements must have the same parent')
 	if start.tag != '{' + NSPREFIXES['w'] + '}p':
 		raise ValueError('start argument must be a paragraph element')
 	if end.tag != '{' + NSPREFIXES['w'] + '}p':
 		raise ValueError('end argument must be a paragraph element')
-	if start.getparent().index(start) > end.getparent().index(end):
+	if body.index(start) > body.index(end):
 		raise ValueError('end paragraph cannot precede start paragraph')
-	para_list = [para for para in start.getparent().getchildren() if \
-	(para.getparent().index(para) in range(start.getparent().index(start),
-	end.getparent().index(end) + 1))]
+	para_list = [para for para in body.getchildren() if body.index(para) in
+	range(body.index(start), body.index(end) + 1)]
 	numId_set = set()
-	for element in start.getparent().iter():
+	for element in body.iter():
 		if element.tag == '{' + NSPREFIXES['w'] + '}numId':
 			for k, v in element.items():
 				if k == '{' + NSPREFIXES['w'] + '}val':
@@ -1242,7 +1243,8 @@ def add_comment(document, text, start, end=None, username='', initials=''):
 		minutestr = '0' + minutestr
 	comment = makeelement('comment', attributes={'id': id_number, 
 	'author': username, 'date': '{0}-{1}-{2}T{3}:{4}:00Z'.format(str(date.year),
-	str(date.month), daystr, hourstr, minutestr), 'initials': initials})
+	str(date.month), daystr, hourstr, minutestr),
+	'initials': initials})
 	para = makeelement('p')
 	comment.append(para)
 	pPr = makeelement('pPr')
