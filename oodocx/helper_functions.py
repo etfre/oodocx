@@ -2,12 +2,12 @@
 
 import struct
 import imghdr
+import stat
+import os
 	
-def image_info(fname):
-	"""
-	Determine the image type of fhandle and return its size.
-	from draco
-	"""
+def get_image_size(fname):
+	'''Determine the image type of fhandle and return its size.
+	from draco'''
 	fhandle = open(fname, 'rb')
 	head = fhandle.read(24)
 	if len(head) != 24:
@@ -39,3 +39,11 @@ def image_info(fname):
 	else:
 		return
 	return width, height
+	
+def remove_readonly(fn, path, excinfo):
+    if fn is os.rmdir:
+        os.chmod(path, stat.S_IWRITE)
+        os.rmdir(path)
+    elif fn is os.remove:
+        os.chmod(path, stat.S_IWRITE)
+        os.remove(path)
