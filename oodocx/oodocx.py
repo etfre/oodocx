@@ -78,89 +78,86 @@ COLOR_MAP = {
 
 class Docx():
 	def __init__(self, docx=''):
-		# dictionary to connect element objects to their path in the docx file
-		self.xmlfiles = {}
-		if os.path.isdir(WRITE_DIR):
-			shutil.rmtree(WRITE_DIR)
-		# Declare empty attributes, which may or may not be assigned to xml
-		# elements later
-		self.comments = None
-		# self.xmlfiles[self.comments] = os.path.join('word/comments.xml')
-		if docx:
-			os.mkdir(WRITE_DIR)
-			mydoc = zipfile.ZipFile(docx)
-			for filepath in mydoc.namelist():
-				mydoc.extractall(WRITE_DIR)
-		else:
-			shutil.copytree(TEMPLATE_DIR, WRITE_DIR)
-			self.rels = write_files.write_rels()
-			self.xmlfiles[self.rels] = os.path.join('_rels', '.rels')
-			self.contenttypes = write_files.write_content_types()
-			self.xmlfiles[self.contenttypes] = '[Content_Types].xml'
-		for root, dirs, filenames in os.walk(WRITE_DIR):
-			for file in filenames:
-				if file != 'theme1.xml' and (file[-4:] == '.xml'
-				or file[-5:] == '.rels'):
-					#FIXME: theme1.xml raises a UnicodeDecodeError
-					absdir = os.path.abspath(os.path.join(root, file))
-					docstr = open(absdir, 'r')
-					relpath = os.path.relpath(absdir, WRITE_DIR)
-					xmlfile = (etree.fromstring(docstr.read()
-					.encode(encoding='UTF-8')))
-					if file == '[Content_Types].xml':
-						self.contenttypes = xmlfile
-						self.xmlfiles[self.contenttypes] = relpath
-						# update self.contenttypes, as needed
-						filetypes = {'gif':  'image/gif',
-						'jpeg': 'image/jpeg',
-						'jpg':  'image/jpeg',
-						'png':  'image/png',
-						'rels': 'application/vnd.openxmlformats-package.relationships+xml',
-						'xml':  'application/xml'}
-						default_elements = [child for child
-						in self.contenttypes.getchildren()
-						if 'Default' in child.tag] 
-						for key, value in filetypes.items():
-							missing_filetype = True
-							for child in default_elements:
-								if key == child.items()[0][1]:
-									missing_filetype = False
-							if missing_filetype:
-								default_element = makeelement('Default',
-								nsprefix=None,
-								attributes={'Extension': key,
-								'ContentType': value})
-								self.contenttypes.append(default_element)
-					elif file == 'app.xml':
-						self.app = xmlfile
-						self.xmlfiles[self.app] = relpath
-					elif file == 'comments.xml':
-						self.comments = xmlfile
-						self.xmlfiles[self.comments] = relpath
-					elif file == 'core.xml': 
-						self.core = xmlfile
-						self.xmlfiles[self.core] = relpath
-					elif file == 'document.xml': 
-						self.document = xmlfile
-						self.xmlfiles[self.document] = relpath
-					elif file == 'document.xml.rels': 
-						self.relationships = xmlfile
-						self.xmlfiles[self.relationships] = relpath	
-					elif file == 'fontTable.xml': 
-						self.fontTable = xmlfile
-						self.xmlfiles[self.fontTable] = relpath
-					elif file == 'settings.xml': 
-						self.styles = xmlfile
-						self.xmlfiles[self.styles] = relpath						
-					elif file == 'styles.xml': 
-						self.styles = xmlfile
-						self.xmlfiles[self.styles] = relpath
-					elif file == 'stylesWithEffects.xml': 
-						self.stylesWithEffects = xmlfile
-						self.xmlfiles[self.stylesWithEffects] = relpath		
-					elif file == 'webSettings.xml': 
-						self.webSettings = xmlfile
-						self.xmlfiles[self.webSettings] = relpath	
+                # dictionary to connect element objects to their path in the docx file
+                self.xmlfiles = {}
+                if os.path.isdir(WRITE_DIR):
+                        shutil.rmtree(WRITE_DIR)
+                # Declare empty attributes, which may or may not be assigned to xml
+                # elements later
+                self.comments = None
+                # self.xmlfiles[self.comments] = os.path.join('word/comments.xml')
+                if docx:
+                        os.mkdir(WRITE_DIR)
+                        mydoc = zipfile.ZipFile(docx)
+                        for filepath in mydoc.namelist():
+                                mydoc.extractall(WRITE_DIR)
+                else:
+                        shutil.copytree(TEMPLATE_DIR, WRITE_DIR)
+                        self.rels = write_files.write_rels()
+                        self.xmlfiles[self.rels] = os.path.join('_rels', '.rels')
+                        self.contenttypes = write_files.write_content_types()
+                        self.xmlfiles[self.contenttypes] = '[Content_Types].xml'
+                for root, dirs, filenames in os.walk(WRITE_DIR):
+                        for file in filenames:
+                                if file[-4:] == '.xml' or file[-5:] == '.rels':
+                                        absdir = os.path.abspath(os.path.join(root, file))
+                                        docstr = open(absdir, 'r', encoding='utf8')
+                                        relpath = os.path.relpath(absdir, WRITE_DIR)
+                                        xmlfile = (etree.fromstring(docstr.read().encode()))
+                                        if file == '[Content_Types].xml':
+                                                self.contenttypes = xmlfile
+                                                self.xmlfiles[self.contenttypes] = relpath
+                                                # update self.contenttypes, as needed
+                                                filetypes = {'gif': 'image/gif',
+                                                'jpeg': 'image/jpeg',
+                                                'jpg': 'image/jpeg',
+                                                'png': 'image/png',
+                                                'rels': 'application/vnd.openxmlformats-package.relationships+xml',
+                                                'xml': 'application/xml'}
+                                                default_elements = [child for child
+                                                in self.contenttypes.getchildren()
+                                                if 'Default' in child.tag]
+                                                for key, value in filetypes.items():
+                                                        missing_filetype = True
+                                                        for child in default_elements:
+                                                                if key == child.items()[0][1]:
+                                                                        missing_filetype = False
+                                                        if missing_filetype:
+                                                                default_element = makeelement('Default',
+                                                                nsprefix=None,
+                                                                attributes={'Extension': key,
+                                                                'ContentType': value})
+                                                                self.contenttypes.append(default_element)
+                                        elif file == 'app.xml':
+                                                self.app = xmlfile
+                                                self.xmlfiles[self.app] = relpath
+                                        elif file == 'comments.xml':
+                                                self.comments = xmlfile
+                                                self.xmlfiles[self.comments] = relpath
+                                        elif file == 'core.xml':
+                                                self.core = xmlfile
+                                                self.xmlfiles[self.core] = relpath
+                                        elif file == 'document.xml':
+                                                self.document = xmlfile
+                                                self.xmlfiles[self.document] = relpath
+                                        elif file == 'document.xml.rels':
+                                                self.relationships = xmlfile
+                                                self.xmlfiles[self.relationships] = relpath        
+                                        elif file == 'fontTable.xml':
+                                                self.fontTable = xmlfile
+                                                self.xmlfiles[self.fontTable] = relpath
+                                        elif file == 'settings.xml':
+                                                self.styles = xmlfile
+                                                self.xmlfiles[self.styles] = relpath                                                
+                                        elif file == 'styles.xml':
+                                                self.styles = xmlfile
+                                                self.xmlfiles[self.styles] = relpath
+                                        elif file == 'stylesWithEffects.xml':
+                                                self.stylesWithEffects = xmlfile
+                                                self.xmlfiles[self.stylesWithEffects] = relpath                
+                                        elif file == 'webSettings.xml':
+                                                self.webSettings = xmlfile
+                                                self.xmlfiles[self.webSettings] = relpath	
 							
 	def get_body(self):
 		return self.document.xpath('/w:document/w:body',
