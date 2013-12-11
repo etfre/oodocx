@@ -79,12 +79,16 @@ class Docx():
     def __init__(self, docx=''):
         # dictionary to connect element objects to their path in the docx file
         self.xmlfiles = {}
-        shutil.rmtree(WRITE_DIR, onerror=helper_functions.remove_readonly)
+        try:
+            shutil.rmtree(WRITE_DIR, onerror=helper_functions.remove_readonly)
+        except FileNotFoundError:
+            pass
         # Declare empty attributes, which may or may not be assigned to xml
         # elements later
         self.comments = None
         # self.xmlfiles[self.comments] = os.path.join('word/comments.xml')
         if docx:
+            os.mkdir(WRITE_DIR)
             mydoc = zipfile.ZipFile(docx)
             for filepath in mydoc.namelist():
                 mydoc.extractall(WRITE_DIR)
@@ -472,8 +476,10 @@ class Docx():
                 docxfile.write(templatefile, archivename)
         docxfile.close()
         os.chdir(prev_dir)  # restore previous working dir
-        shutil.rmtree(WRITE_DIR, onerror=helper_functions.remove_readonly)
-        
+        try:
+            shutil.rmtree(WRITE_DIR, onerror=helper_functions.remove_readonly)
+        except FileNotFoundError:
+            pass
     
 def merge_text(run):
     runtext = ''
@@ -1300,3 +1306,4 @@ def add_comment(document, text, start, end=None, username='', initials=''):
     para.append(run_text)
     run_text.append(makeelement('t', tagtext=text))
     document.comments.append(comment)
+
