@@ -1,6 +1,3 @@
-#! python3
-# -*- coding: utf-8 -*-
-
 """
 Open and modify Microsoft Word 2007 and 2010 docx files (called 'OpenXML' and
 'Office OpenXML' by Microsoft)
@@ -21,9 +18,14 @@ import collections
 import stat
 import tempfile
 from lxml import etree
-from oodocx import helper_functions
-from oodocx import write_files
-
+try:
+    from oodocx import helper_functions
+except ImportError:
+    import helper_functions
+try:
+    from oodocx import write_files
+except ImportError:
+    import write_files
 
 log = logging.getLogger(__name__)
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'template')
@@ -88,7 +90,7 @@ class Docx():
         self.xmlfiles = {}
         try:
             shutil.rmtree(self.write_dir, onerror=helper_functions.remove_readonly)
-        except FileNotFoundError:
+        except:
             pass
         # Declare empty attributes, which may or may not be assigned to xml
         # elements later
@@ -114,7 +116,7 @@ class Docx():
                     absdir = os.path.abspath(os.path.join(root, file))
                     docstr = io.open(absdir, 'r', encoding='utf8')
                     relpath = os.path.relpath(absdir, self.write_dir)
-                    xmlfile = (etree.fromstring(docstr.read().encode()))
+                    xmlfile = (etree.fromstring(docstr.read().encode('utf_8')))
                     if file == '[Content_Types].xml':
                         self.contenttypes = xmlfile
                         self.xmlfiles[self.contenttypes] = relpath

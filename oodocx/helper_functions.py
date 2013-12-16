@@ -1,5 +1,3 @@
-#! python3
-
 import struct
 import imghdr
 import stat

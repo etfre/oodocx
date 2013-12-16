@@ -1,5 +1,7 @@
+
 from lxml import etree
 import os
+
 NSPREFIXES = {
 	'mo': 'http://schemas.microsoft.com/office/mac/office/2008/main',
 	'o':  'urn:schemas-microsoft-com:office:office',
