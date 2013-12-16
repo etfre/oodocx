@@ -16,6 +16,7 @@ import re
 import time
 import datetime
 import os
+import io
 import collections
 import stat
 import tempfile
@@ -26,7 +27,7 @@ from oodocx import write_files
 
 log = logging.getLogger(__name__)
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'template')
-WRITE_DIR = tempfile.mkdtemp()
+BASE_DIR = tempfile.mkdtemp()
 # All Word prefixes / namespace matches used in document.xml & core.xml.
 # LXML doesn't actually use prefixes (just the real namespace) , but these
 # make it easier to copy Word output more easily.
@@ -60,7 +61,7 @@ NSPREFIXES = {
     'dcterms':  'http://purl.org/dc/terms/',
     # Special xml namespace
     'xml': 'http://www.w3.org/XML/1998/namespace'}
-    
+
 COLOR_MAP = {
     'black': '000000',
     'blue': '0000FF',
@@ -75,25 +76,31 @@ COLOR_MAP = {
     'white': 'FFFFFF',
     'yellow': 'FFFF00'}
 
+
 class Docx():
-    def __init__(self, docx=''):
+    def __init__(self, file=''):
+        folder_number = 1
+        self.write_dir = os.path.join(BASE_DIR, str(folder_number))
+        while os.path.isdir(self.write_dir):
+            folder_number += 1
+            self.write_dir = os.path.join(BASE_DIR,  str(folder_number))
         # dictionary to connect element objects to their path in the docx file
         self.xmlfiles = {}
         try:
-            shutil.rmtree(WRITE_DIR, onerror=helper_functions.remove_readonly)
+            shutil.rmtree(self.write_dir, onerror=helper_functions.remove_readonly)
         except FileNotFoundError:
             pass
         # Declare empty attributes, which may or may not be assigned to xml
         # elements later
         self.comments = None
         # self.xmlfiles[self.comments] = os.path.join('word/comments.xml')
-        if docx:
-            os.mkdir(WRITE_DIR)
-            mydoc = zipfile.ZipFile(docx)
+        if file:
+            os.mkdir(self.write_dir)
+            mydoc = zipfile.ZipFile(file)
             for filepath in mydoc.namelist():
-                mydoc.extractall(WRITE_DIR)
+                mydoc.extractall(self.write_dir)
         else:
-            shutil.copytree(TEMPLATE_DIR, WRITE_DIR)
+            shutil.copytree(TEMPLATE_DIR, self.write_dir)
             
             self.rels = write_files.write_rels()
             self.xmlfiles[self.rels] = os.path.join('_rels', '.rels')
@@ -101,12 +108,12 @@ class Docx():
             self.contenttypes = write_files.write_content_types()
             self.xmlfiles[self.contenttypes] = '[Content_Types].xml'
             
-        for root, dirs, filenames in os.walk(WRITE_DIR):
+        for root, dirs, filenames in os.walk(self.write_dir):
             for file in filenames:
                 if file[-4:] == '.xml' or file[-5:] == '.rels':
                     absdir = os.path.abspath(os.path.join(root, file))
-                    docstr = open(absdir, 'r', encoding='utf8')
-                    relpath = os.path.relpath(absdir, WRITE_DIR)
+                    docstr = io.open(absdir, 'r', encoding='utf8')
+                    relpath = os.path.relpath(absdir, self.write_dir)
                     xmlfile = (etree.fromstring(docstr.read().encode()))
                     if file == '[Content_Types].xml':
                         self.contenttypes = xmlfile
@@ -120,7 +127,7 @@ class Docx():
                                 '.relationships+xml',
                         'xml':  'application/xml'}
                         default_elements = [child for child
-                        in self.contenttypes.getchildren()
+                        in self.contenttypes.iterchildren()
                         if 'Default' in child.tag] 
                         for key, value in filetypes.items():
                             missing_filetype = True
@@ -165,7 +172,7 @@ class Docx():
                         self.xmlfiles[self.webSettings] = relpath	
         self.body = self.document.xpath('/w:document/w:body',
                                         namespaces=NSPREFIXES)[0]
-                            
+        
     def get_body(self):
         return self.document.xpath('/w:document/w:body',
                                    namespaces=NSPREFIXES)[0]
@@ -175,15 +182,14 @@ class Docx():
         searchre = re.compile(search)
         result = None
         if ignore_runs:
-            para_list = [child for child in self.document.iter() if
-            child.tag == '{%s}p' % NSPREFIXES['w']]
+            para_list = [child for child in
+                         self.document.iter('{%s}p' % NSPREFIXES['w'])]
             text_positions = []
             raw_text = []
             start = 0
             for para in para_list:
-                for element in para.iter():
-                    if (element.tag == '{%s}t' % NSPREFIXES['w'] and 
-                    element.text):
+                for element in para.iter('{%s}t' % NSPREFIXES['w']):
+                    if element.text:
                         raw_text.append(element.text)
                         text_positions.append((start,
                         start + len(element.text) - 1, element))
@@ -195,9 +201,8 @@ class Docx():
                         result = value[2]
                         break
         else:
-            for element in self.document.iter():
-                if (element.tag == '{%s}t' % NSPREFIXES['w'] and element.text
-                and searchre.search(element.text)):
+            for element in self.document.iter('{%s}t' % NSPREFIXES['w']):
+                if element.text and searchre.search(element.text):
                     result = element
                     break
         if result is not None:
@@ -213,29 +218,27 @@ class Docx():
         '''Replace all occurrences of string with a different string.
         If ignore_runs is true, the function will ignore separate run
         and text elements and instead search each raw paragraph text
-        content as a single string. Note that this will ignore
+        content as a single string. Note that this will also ignore
         formatting elements within a paragraph such as tabs, which
         may cause unexpected results. Set ignore_runs to false if you
-        want a more conservative, stable search.'''
+        want a more conservative search.'''
         searchre = re.compile(search)
         if ignore_runs:
-            para_list = [child for child in self.document.iter() if
-            child.tag == '{%s}p' % NSPREFIXES['w']]
+            para_list = [child for child in
+                         self.document.iter('{%s}p' % NSPREFIXES['w'])]
             for para in para_list:
                 paratext = []
                 rundict = collections.OrderedDict()
                 start = 0
-                for element in para.iter():
-                    if element.tag == '{%s}r' % NSPREFIXES['w']:
-                        runtext = []
-                        for subelement in element.iter(): #run
-                            if (subelement.tag == '{%s}t' % NSPREFIXES['w'] and
-                            subelement.text):
-                                paratext.append(subelement.text)
-                                runtext.append(subelement.text)
-                                rundict[element] = [start, start +
-                                len(subelement.text), ''.join(runtext)]
-                                start += len(subelement.text)
+                for element in para.iter('{%s}r' % NSPREFIXES['w']):
+                    runtext = []
+                    for subelement in element.iter('{%s}t' % NSPREFIXES['w']):
+                        if subelement.text:
+                            paratext.append(subelement.text)
+                            runtext.append(subelement.text)
+                            rundict[element] = [start, start +
+                            len(subelement.text), ''.join(runtext)]
+                            start += len(subelement.text)
                 match_slices = [match.span() for match in
                 re.finditer(searchre, ''.join(paratext))]
                 preliminary_runs = collections.OrderedDict()
@@ -274,11 +277,6 @@ class Docx():
                     text_element = run.find('{%s}t' % NSPREFIXES['w'])
                     newstring = text_element.text
                     for match in match_slices:
-                        # Difference between replace and search length.
-                        # Executes for each match in match_slices to
-                        # account for potential difference in lengths
-                        # of matches due to regex search argument
-                        difference = len(replace) - (match[1] - match[0])
                         if match[0] in range(text_info[0], text_info[1]):
                             newstring = (newstring[:match[0] + runshift -
                             text_info[0]] + replace + 
@@ -289,7 +287,11 @@ class Docx():
                                     '}space', 'preserve')
                             except IndexError:
                                 pass
-                            runshift += difference
+                            # Difference between replace and search length.
+                            # Executes for each match in match_slices to
+                            # account for potential difference in lengths
+                            # of matches due to regex search argument
+                            runshift += len(replace) - (match[1] - match[0])
                             if match[1] > text_info[1]:
                                 overflow = match[1] - text_info[1]
                                 if index < len(runs_to_modify) - 1:
@@ -300,9 +302,8 @@ class Docx():
                                     next_text.text = next_text.text[overflow:]					
                     text_element.text = newstring
         else:
-            for element in self.document.iter():
-                if (element.tag == '{%s}t' % NSPREFIXES['w'] and element.text
-                and searchre.search(element.text)):
+            for element in self.document.iter('{%s}t' % NSPREFIXES['w']):
+                if element.text and searchre.search(element.text):
                     element.text = re.sub(search, replace, element.text)
                         
     def clean(self):
@@ -318,11 +319,11 @@ class Docx():
         
     def add_style(self, styleId, type, default=None, name=None):
         if default in (1, '1', True):
-            style = makeelement('style', attributes={'styleId' : styleId, 
-            'type' : type, 'default' : default})
+            style = makeelement('style', attributes={'styleId': styleId, 
+            'type': type, 'default': default})
         else:
-            style = makeelement('style', attributes={'styleId' : styleId, 
-            'type' : type})
+            style = makeelement('style', attributes={'styleId': styleId, 
+            'type': type})
         style.append(makeelement('pPr'))
         style.append(makeelement('rPr'))
         self.styles.append(style)
@@ -355,8 +356,7 @@ class Docx():
         elements_to_modify.append(pprdefault)
         if modify_styles:
             elements_to_modify.extend([element for element in
-            self.styles.getchildren() if element.tag == 
-            '{' + NSPREFIXES['w'] + '}style'])
+            self.styles.iterchildren('{' + NSPREFIXES['w'] + '}style')])
         modify_paragraph(elements_to_modify, indent=indent,
         spacing=spacing, pstyle=pstyle, justification=justification)
 
@@ -378,8 +378,7 @@ class Docx():
         elements_to_modify.append(rprdefault)
         if modify_styles:
             elements_to_modify.extend([element for element in
-            self.styles.getchildren() if element.tag == 
-            '{' + NSPREFIXES['w'] + '}style'])
+            self.styles.iterchildren('{' + NSPREFIXES['w'] + '}style')])
         modify_font(elements_to_modify, name=name, size=size,
         underline=underline, color=color, highlight=highlight,
         strikethrough=strikethrough, subscript=subscript,
@@ -389,15 +388,13 @@ class Docx():
     def get_section_properties(self):
         '''Returns the sectPr element at the end of the body, creates
         the element first if one is not found'''
-        body = self.document.xpath('/w:document/w:body',
-        namespaces=NSPREFIXES)[0]
-        sect_list = [child for child in body.getchildren() if (child.tag ==
-        '{' + NSPREFIXES['w'] + '}sectPr')]
+        sect_list = [child for child in
+                     self.body.iterchildren('{' + NSPREFIXES['w'] + '}sectPr')]
         if len(sect_list) == 1:
             return sect_list[0]
         elif not sect_list:
             sect_props = makeelement('sectPr')
-            body.append(sect_props)
+            self.body.append(sect_props)
             return sect_props
             
     def get_document_text(self):
@@ -405,20 +402,17 @@ class Docx():
         paratextlist = []
         # Compile a list of all paragraph (p) elements
         paralist = []
-        for element in self.document.iter():
-            # Find p (paragraph) elements
-            if element.tag == '{' + NSPREFIXES['w'] + '}p':
-                paralist.append(element)
+        for element in self.document.iter('{' + NSPREFIXES['w'] + '}p'):
+            paralist.append(element)
         # Since a single sentence might be spread over multiple text elements,
         # iterate through each paragraph, appending all text (t) children to
         # that paragraph's text.
         for para in paralist:
             paratext = ''
-            for element in para.iter():
+            for element in para.iter('{' + NSPREFIXES['w'] + '}t'):
                 # Find t (text) elements
-                if element.tag == '{' + NSPREFIXES['w'] + '}t':
-                    if element.text:
-                        paratext = paratext+element.text
+                if element.text:
+                    paratext = paratext + element.text
                 elif element.tag == '{' + NSPREFIXES['w'] + '}tab':
                     paratext = paratext + '\t'
             # Add our completed paragraph text to the list of paragraph text
@@ -427,12 +421,15 @@ class Docx():
         return paratextlist
     
     def merge(self, docpath, page_break=True):
-        fromdoc = Docx(docpath)
+        if isinstance(docpath, Docx):
+            fromdoc = docpath
+        else:
+            fromdoc = Docx(docpath)
         first_sectpr = self.body.find('{' + NSPREFIXES['w'] + '}sectPr')
         if page_break:
             try:
-                last_para = [para for para in self.body.iterchildren() if
-                para.tag == '{' + NSPREFIXES['w'] + '}p'][-1]
+                last_para = [para for para in
+                      self.body.iterchildren('{' + NSPREFIXES['w'] + '}p')][-1]
             except IndexError:
                 last_para = paragraph('')
                 self.body.append(last_para)
@@ -455,14 +452,14 @@ class Docx():
         compression=zipfile.ZIP_DEFLATED)
         # Move to the template data path
         prev_dir = os.path.abspath('.')  # save previous working dir
-        os.chdir(WRITE_DIR)
+        os.chdir(self.write_dir)
         # Write changes made to xml files in write directory between __init__()
         # and save()
         for xmlfile, relpath in self.xmlfiles.items():
-            absolutepath = os.path.split(os.path.join(WRITE_DIR, relpath))[0]
+            absolutepath = os.path.split(os.path.join(self.write_dir, relpath))[0]
             if not os.path.isdir(absolutepath):
                 os.mkdir(absolutepath)
-            newdoc = open(relpath, 'w')
+            newdoc = io.open(relpath, 'w')
             newdoc.write(etree.tostring(
             xmlfile, xml_declaration=True).decode(encoding='UTF-8'))
             newdoc.close()
@@ -477,15 +474,15 @@ class Docx():
         docxfile.close()
         os.chdir(prev_dir)  # restore previous working dir
         try:
-            shutil.rmtree(WRITE_DIR, onerror=helper_functions.remove_readonly)
+            shutil.rmtree(self.write_dir, onerror=helper_functions.remove_readonly)
         except FileNotFoundError:
             pass
     
 def merge_text(run):
     runtext = ''
     first = True
-    for child in run.getchildren():
-        if child.tag == '{%s}t' % NSPREFIXES['w'] and child.text:
+    for child in run.iterchildren('{' + NSPREFIXES['w'] + '}t'):
+        if child.text:
             runtext == ''
             runtext += child.text
             if first:
@@ -526,14 +523,13 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
             '{' + NSPREFIXES['w'] + '}style'):
                 run_list.append(element)
                 continue
-            for child in element.iter():
-                if child.tag == '{' + NSPREFIXES['w'] + '}r':
-                    run_list.append(child)
+            for child in element.iter('{' + NSPREFIXES['w'] + '}r'):
+                run_list.append(child)
     elif elements.tag == '{' + NSPREFIXES['w'] + '}r':
         run_list = [elements]
     else:
-        run_list = [child for child in elements.iter() if
-        child.tag == '{' + NSPREFIXES['w'] + '}r']
+        run_list = [child for child in
+        elements.iter('{' + NSPREFIXES['w'] + '}r')]
     for run in run_list:
         rpr = run.find('{' + NSPREFIXES['w'] + '}rPr')
         if rpr is None:
@@ -627,7 +623,7 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
                 rpr.remove(vertalign)
             if subscript in (1, True):
                 vertalign = makeelement('vertalign',
-                attributes={'val', 'subscript'})
+                attributes={'val': 'subscript'})
                 rpr.append(vertalign)
         if superscript != 'default':
             vertalign = rpr.find('{' + NSPREFIXES['w'] + '}vertAlign')
@@ -635,7 +631,7 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
                 rpr.remove(vertalign)
             if superscript in (1, True):
                 vertalign = makeelement('vertalign',
-                attributes={'val', 'superscript'})
+                attributes={'val': 'superscript'})
                 rpr.append(vertalign)
         bool_list = ((bold, 'b'), (italics, 'i'), (shadow, 'shadow'), 
         (allcaps, 'caps'), (smallcaps, 'smallCaps'), (hidden, 'vanish'))
@@ -824,12 +820,12 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
         if run_properties:
             if isinstance(run_properties[0], str):
                 a = makeelement(run_properties[0], 
-                attributes={run_properties[1] : run_properties[2]})
+                attributes={run_properties[1]: run_properties[2]})
                 rPr.append(a)
             else:
                 for element in run_properties:
                     a = makeelement(element[0],
-                    attributes={element[1] : element[2]})
+                    attributes={element[1]: element[2]})
                     rPr.append(a)
         run.append(rPr)
         # Insert lastRenderedPageBreak for assistive technologies like
@@ -841,6 +837,7 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
         paragraph.append(run)
     # Return the combined paragraph
     return paragraph
+    
 def heading(headingtext, headinglevel=1, lang='en'):
     '''Make a new heading, return the heading element'''
     lmap = {'en': 'Heading', 'it': 'Titolo'}
@@ -857,6 +854,7 @@ def heading(headingtext, headinglevel=1, lang='en'):
     paragraph.append(run)
     # Return the combined paragraph
     return paragraph
+    
 def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto', borders={}, celstyle=None):
     """
     Return a table element based on specified parameters
@@ -998,7 +996,7 @@ def picture(document, picpath, picdescription='', pixelwidth=None, pixelheight=N
     # Create an image. Size may be specified, otherwise it will based on the
     # pixel size of image.
     # Copy the file into the media dir
-    media_dir = os.path.join(WRITE_DIR, 'word', 'media')
+    media_dir = os.path.join(write_dir, 'word', 'media')
     if not os.path.isdir(media_dir):
         os.mkdir(media_dir)
     picname = os.path.basename(picpath)
@@ -1094,36 +1092,36 @@ def picture(document, picpath, picdescription='', pixelwidth=None, pixelheight=N
 def append_text(element, text):		
     if element.tag == '{' + NSPREFIXES['w'] + '}body':
         try:
-            last_para = [child for child in element.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}p'][-1]
+            last_para = [child for child in element.iterchildren() if child.tag == '{' + NSPREFIXES['w'] + '}p'][-1]
         except IndexError:
             element.append(paragraph(text))
             return
         try:
-            last_run = [child for child in last_para.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}r'][-1]
+            last_run = [child for child in last_para.iterchildren() if child.tag == '{' + NSPREFIXES['w'] + '}r'][-1]
         except IndexError:
             last_run = makeelement('r')
             last_para.append(last_run)
         try:
-            last_text = [child for child in last_run.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}t'][-1]
+            last_text = [child for child in last_run.iterchildren() if child.tag == '{' + NSPREFIXES['w'] + '}t'][-1]
             last_text.text += text
         except IndexError:
             last_text = makeelement('t', tagtext=text)
             last_run.append(last_text)
     elif element.tag == '{' + NSPREFIXES['w'] + '}p':
         try:
-            last_run = [child for child in element.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}r'][-1]
+            last_run = [child for child in element.iterchildren('{' + NSPREFIXES['w'] + '}r')][-1]
         except IndexError:
             last_run = makeelement('r')
             element.append(last_run)
         try:
-            last_text = [child for child in last_run.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}t'][-1]
+            last_text = [child for child in last_run.iterchildren('{' + NSPREFIXES['w'] + '}t')][-1]
             last_text.text += text
         except IndexError:
             last_text = makeelement('t', tagtext=text)
             last_run.append(last_text)
     elif element.tag == '{' + NSPREFIXES['w'] + '}r':
         try:
-            last_text = [child for child in element.getchildren() if child.tag == '{' + NSPREFIXES['w'] + '}t'][-1]
+            last_text = [child for child in element.iterchildren('{' + NSPREFIXES['w'] + '}t')][-1]
             last_text.text += text
         except IndexError:
             last_text = makeelement('t', tagtext=text)
@@ -1143,23 +1141,21 @@ def numbered_list(start, end=None):
         raise ValueError('end argument must be a paragraph element')
     if body.index(start) > body.index(end):
         raise ValueError('end paragraph cannot precede start paragraph')
-    para_list = [para for para in body.getchildren() if body.index(para) in
+    para_list = [para for para in body.iterchildren() if body.index(para) in
     range(body.index(start), body.index(end) + 1)]
     numId_set = set()
-    for element in body.iter():
-        if element.tag == '{' + NSPREFIXES['w'] + '}numId':
-            for k, v in element.items():
-                if k == '{' + NSPREFIXES['w'] + '}val':
-                    numId_set.add(v)
+    for element in body.iter('{' + NSPREFIXES['w'] + '}numId'):
+        for k, v in element.items():
+            if k == '{' + NSPREFIXES['w'] + '}val':
+                numId_set.add(v)
     numId_value = '1'
     while numId_value in numId_set:
         numId_value = str(int(numId_value) + 1)
     for para in para_list:
         pPr = makeelement('pPr')
-        for child in para.getchildren():
-            if child.tag == '{' + NSPREFIXES['w'] + '}pPr':
-                pPr = child
-                break
+        for child in para.iterchildren('{' + NSPREFIXES['w'] + '}pPr'):
+            pPr = child
+            break
         if pPr.getparent() is None:
             para.insert(0, pPr)
         numPr = makeelement('numPr')
@@ -1218,7 +1214,7 @@ def add_comment(document, text, start, end=None, username='', initials=''):
         paragraph = run.getparent()
         text_pos = run.index(start)
         run_pos = paragraph.index(run)
-        text_elements = [child for child in run.getchildren() if child.tag ==
+        text_elements = [child for child in run.iterchildren() if child.tag ==
         '{' + NSPREFIXES['w'] + '}t']
         if text_pos != 0:
             preceding_run = makeelement('r')
@@ -1258,8 +1254,8 @@ def add_comment(document, text, start, end=None, username='', initials=''):
         paragraph = run.getparent()
         text_pos = run.index(end)
         run_pos = paragraph.index(run)
-        text_elements = [child for child in run.getchildren() if child.tag ==
-        '{' + NSPREFIXES['w'] + '}t']
+        text_elements = [child for child in
+                         run.iterchildren('{' + NSPREFIXES['w'] + '}t')]
         if text_pos != 0:
             preceding_run = makeelement('r')
             for element_text in text_elements[:text_pos - 1]:
@@ -1306,4 +1302,22 @@ def add_comment(document, text, start, end=None, username='', initials=''):
     para.append(run_text)
     run_text.append(makeelement('t', tagtext=text))
     document.comments.append(comment)
-
+    
+    
+def get_text(element):
+    '''Returns a single string of text which is a concatenation of all
+    of the text contained by text elements'''
+    if element.tag == '{' + NSPREFIXES['w'] + '}t':
+        return element.text
+    else:
+        text_list = []
+        for descendant in element.iter('{' + NSPREFIXES['w'] + '}t'):
+            if descendant.text:
+                text_list.append(descendant.text)
+        return ''.join(text_list)
+  
+def remove_formatting(element):
+    for descendant in element.iter():
+        if (descendant.tag == '{' + NSPREFIXES['w'] + '}pPr' or 
+        descendant.tag == '{' + NSPREFIXES['w'] + '}rPr'):
+            descendant.getparent().remove(descendant)
