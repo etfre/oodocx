@@ -634,7 +634,6 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
             if vertAlign is not None and superscript in (0, False, 1, True):
                 rpr.remove(vertAlign)
             if superscript in (1, True):
-                print('trace')
                 vertAlign = makeelement('vertAlign',
                 attributes={'val': 'superscript'})
                 rpr.append(vertAlign)
