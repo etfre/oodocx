@@ -180,7 +180,9 @@ class Docx():
                                    namespaces=NSPREFIXES)[0]
         
     def search(self, search, result_type='text', ignore_runs=True):
-        '''Search for a regex, returns element object or None'''
+        '''Search for a regex, returns element object or None.
+        Returns the first element that contains a match. Will return
+        the first element if match spans multiple text elements.'''
         searchre = re.compile(search)
         result = None
         if ignore_runs:
@@ -620,21 +622,22 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
                 elif strikethrough in (1, True):
                     rpr.append(makeelement('strike'))
         if subscript != 'default':
-            vertalign = rpr.find('{' + NSPREFIXES['w'] + '}vertAlign')
-            if vertalign is not None and subscript in (0, False, 1, True):
-                rpr.remove(vertalign)
+            vertAlign = rpr.find('{' + NSPREFIXES['w'] + '}vertAlign')
+            if vertAlign is not None and subscript in (0, False, 1, True):
+                rpr.remove(vertAlign)
             if subscript in (1, True):
-                vertalign = makeelement('vertalign',
+                vertAlign = makeelement('vertAlign',
                 attributes={'val': 'subscript'})
-                rpr.append(vertalign)
+                rpr.append(vertAlign)
         if superscript != 'default':
-            vertalign = rpr.find('{' + NSPREFIXES['w'] + '}vertAlign')
-            if vertalign is not None and superscript in (0, False, 1, True):
-                rpr.remove(vertalign)
+            vertAlign = rpr.find('{' + NSPREFIXES['w'] + '}vertAlign')
+            if vertAlign is not None and superscript in (0, False, 1, True):
+                rpr.remove(vertAlign)
             if superscript in (1, True):
-                vertalign = makeelement('vertalign',
+                print('trace')
+                vertAlign = makeelement('vertAlign',
                 attributes={'val': 'superscript'})
-                rpr.append(vertalign)
+                rpr.append(vertAlign)
         bool_list = ((bold, 'b'), (italics, 'i'), (shadow, 'shadow'), 
         (allcaps, 'caps'), (smallcaps, 'smallCaps'), (hidden, 'vanish'))
         for key, value in bool_list:
