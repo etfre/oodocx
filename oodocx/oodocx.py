@@ -696,6 +696,7 @@ pstyle='default', justification='default'):
                 ppr.remove(jc)
             jc = makeelement('jc', attributes={'val': justification.lower()})
             ppr.append(jc)
+            
 def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
                 attrnsprefix=None):
     '''Create an element & return it'''
@@ -724,13 +725,14 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
             else:
                 attributenamespace = ''
         else:
-            attributenamespace = '{'+NSPREFIXES[attrnsprefix]+'}'
+            attributenamespace = '{' + NSPREFIXES[attrnsprefix] + '}'
         for tagattribute in attributes:
-            newelement.set(attributenamespace+tagattribute, attributes[tagattribute])
+            newelement.set(attributenamespace + tagattribute, attributes[tagattribute])
     if tagtext is not None and len(tagtext):
         newelement.text = tagtext
     newelement.prefix
-    return newelement	
+    return newelement
+    
 def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
     '''Make a new paragraph element, containing a run, and some text.
     Return the paragraph element.
@@ -912,7 +914,10 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
                 k = 'all' if 'all' in borders.keys() else b
                 attrs = {}
                 for a in borders[k].keys():
-                    attrs[a] = unicode(borders[k][a])
+                    try:
+                        attrs[a] = unicode(borders[k][a])
+                    except NameError:
+                        attrs[a] = borders[k][a]
                 borderelem = makeelement(b, attributes=attrs)
                 tableborders.append(borderelem)
         tableprops.append(tableborders)
@@ -941,13 +946,7 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
             else:
                 wattr = {'w': '0', 'type': 'auto'}
             cellwidth = makeelement('tcW', attributes=wattr)
-            cellstyle = makeelement('shd', attributes={'val': 'clear',
-                                                    'color': 'auto',
-                                                    'fill': 'FFFFFF',
-                                                    'themeFill': 'text2',
-                                                    'themeFillTint': '99'})
             cellprops.append(cellwidth)
-            cellprops.append(cellstyle)
             cell.append(cellprops)
             # Paragraph (Content)
             if not isinstance(heading, (list, tuple)):
@@ -956,7 +955,7 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
                 if isinstance(h, etree._Element):
                     cell.append(h)
                 else:
-                    cell.append(paragraph(h, jc='center'))
+                    cell.append(paragraph(h, pprops={'jc':{'val': 'center'}}))
             row.append(cell)
             i += 1
         table.append(row)
@@ -986,7 +985,7 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
                         align = celstyle[i]['align']
                     else:
                         align = 'left'
-                    cell.append(paragraph(c, jc=align))
+                    cell.append(paragraph(c, pprops={'jc':{'val': 'center'}}))
             row.append(cell)
             i += 1
         table.append(row)
@@ -1324,4 +1323,4 @@ def remove_formatting(element):
     for descendant in element.iter():
         if (descendant.tag == '{' + NSPREFIXES['w'] + '}pPr' or 
         descendant.tag == '{' + NSPREFIXES['w'] + '}rPr'):
-            descendant.getparent().remove(descendant)
+            descendant.getparent().remove(descendant)        
