@@ -434,8 +434,11 @@ class Docx():
             old_rId = relationship.values()[0]
             relationship_type = relationship.values()[1]
             relationship_target = relationship.values()[2]
-            new_rId = helper_functions.add_relationship(self, relationship_target,
-                                                   relationship_type)
+            new_rId = helper_functions.add_relationship(self,
+                                                        relationship_target,
+                                                        relationship_type)
+            if new_rId is None:
+                new_rId = old_rId
             for element in fromdoc.body.iter():
                 for item in element.items():
                     attribute = item[0]
@@ -444,9 +447,26 @@ class Docx():
                         element.set(attribute, new_rId)
         if not os.path.isdir(self.media_dir):
             os.mkdir(self.media_dir)
-        for file in os.listdir(fromdoc.media_dir):
-            shutil.copyfile(os.path.join(fromdoc.media_dir, file),
-                            os.path.join(self.media_dir, file))
+        tofiles = []
+        for (dirpath, dirnames, filenames) in os.walk(self.write_dir):
+            relpath = dirpath[len(self.write_dir) + 1:]
+            for file in filenames:
+                relfile = os.path.join(relpath, file)
+                tofiles.append(relfile)
+        for (dirpath, dirnames, filenames) in os.walk(fromdoc.write_dir):
+            relpath = dirpath[len(fromdoc.write_dir) + 1:]
+            head, tail = os.path.split(dirpath)
+            if tail == 'media':
+                for file in filenames:
+                    shutil.copyfile(os.path.join(fromdoc.media_dir, file),
+                                    os.path.join(self.media_dir, file))
+            else:
+                for file in filenames:
+                    if not os.path.isdir(os.path.join(self.write_dir, relpath)):
+                        os.mkdir(os.path.join(self.write_dir, relpath))
+                    if os.path.join(relpath, file) not in tofiles:  
+                        shutil.copyfile(os.path.join(fromdoc.write_dir, relpath, file),
+                        os.path.join(self.write_dir, relpath, file))
         first_sectpr = self.body.find('{' + NSPREFIXES['w'] + '}sectPr')
         if page_break:
             try:
@@ -1318,7 +1338,7 @@ def add_comment(document, text, start, end=None, username='', initials=''):
     
 def get_text(element):
     '''Returns a single string of text which is a concatenation of all
-    of the text contained by text elements'''
+    of the text contained by text elements in the argument element'''
     if element.tag == '{' + NSPREFIXES['w'] + '}t':
         return element.text
     else:
