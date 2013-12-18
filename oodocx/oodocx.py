@@ -92,15 +92,16 @@ class Docx():
             shutil.rmtree(self.write_dir, onerror=helper_functions.remove_readonly)
         except:
             pass
+        self.media_dir = os.path.join(self.write_dir, 'word', 'media')
         # Declare empty attributes, which may or may not be assigned to xml
         # elements later
         self.comments = None
         # self.xmlfiles[self.comments] = os.path.join('word/comments.xml')
         if file:
             os.mkdir(self.write_dir)
-            mydoc = zipfile.ZipFile(file)
-            for filepath in mydoc.namelist():
-                mydoc.extractall(self.write_dir)
+            zipdoc = zipfile.ZipFile(file)
+            for filepath in zipdoc.namelist():
+                zipdoc.extractall(self.write_dir)
         else:
             shutil.copytree(TEMPLATE_DIR, self.write_dir)
             
@@ -180,19 +181,19 @@ class Docx():
                                    namespaces=NSPREFIXES)[0]
         
     def search(self, search, result_type='text', ignore_runs=True):
-        '''Search for a regex, returns element object or None.
-        Returns the first element that contains a match. Will return
-        the first element if match spans multiple text elements.'''
+        '''Search for a regex, returns first matching element object or
+        None if nothing found. Will return the first element if match
+        spans multiple text elements.'''
         searchre = re.compile(search)
         result = None
         if ignore_runs:
             para_list = [child for child in
-                         self.document.iter('{%s}p' % NSPREFIXES['w'])]
+                         self.document.iter('{' + NSPREFIXES['w'] + '}p')]
             text_positions = []
             raw_text = []
             start = 0
             for para in para_list:
-                for element in para.iter('{%s}t' % NSPREFIXES['w']):
+                for element in para.iter('{' + NSPREFIXES['w'] + '}t'):
                     if element.text:
                         raw_text.append(element.text)
                         text_positions.append((start,
@@ -205,16 +206,16 @@ class Docx():
                         result = value[2]
                         break
         else:
-            for element in self.document.iter('{%s}t' % NSPREFIXES['w']):
+            for element in self.document.iter('{' + NSPREFIXES['w'] + '}t'):
                 if element.text and searchre.search(element.text):
                     result = element
                     break
         if result is not None:
             if result_type.lower() == 'paragraph':
-                while not result.tag == '{%s}p' % NSPREFIXES['w']:
+                while not result.tag == '{' + NSPREFIXES['w'] + '}p':
                     result = result.getparent()
             elif result_type.lower() == 'run':
-                while not result.tag == '{%s}r' % NSPREFIXES['w']:
+                while not result.tag == '{' + NSPREFIXES['w'] + '}r':
                     result = result.getparent()	
         return result
         
@@ -229,14 +230,14 @@ class Docx():
         searchre = re.compile(search)
         if ignore_runs:
             para_list = [child for child in
-                         self.document.iter('{%s}p' % NSPREFIXES['w'])]
+                         self.document.iter('{' + NSPREFIXES['w'] + '}p')]
             for para in para_list:
                 paratext = []
                 rundict = collections.OrderedDict()
                 start = 0
-                for element in para.iter('{%s}r' % NSPREFIXES['w']):
+                for element in para.iter('{' + NSPREFIXES['w'] + '}r'):
                     runtext = []
-                    for subelement in element.iter('{%s}t' % NSPREFIXES['w']):
+                    for subelement in element.iter('{' + NSPREFIXES['w'] + '}t'):
                         if subelement.text:
                             paratext.append(subelement.text)
                             runtext.append(subelement.text)
@@ -268,7 +269,7 @@ class Docx():
                         previous_text_info = list(
                         runs_to_modify.items())[-1][1]
                         previous_text = previous_run.find(
-                        '{%s}t' % NSPREFIXES['w'])
+                        '{' + NSPREFIXES['w'] + '}t')
                         previous_text.text += text_info[2]
                         previous_text_info[1] += len(text_info[2])
                         previous_text_info[2] += text_info[2]
@@ -278,7 +279,7 @@ class Docx():
                 runs_to_modify.items()):
                     runshift = -overflow
                     overflow = 0
-                    text_element = run.find('{%s}t' % NSPREFIXES['w'])
+                    text_element = run.find('{' + NSPREFIXES['w'] + '}t')
                     newstring = text_element.text
                     for match in match_slices:
                         if match[0] in range(text_info[0], text_info[1]):
@@ -302,11 +303,11 @@ class Docx():
                                     next_run = list(
                                     runs_to_modify.keys())[index + 1]
                                     next_text = next_run.find(
-                                    '{%s}t' % NSPREFIXES['w'])
+                                    '{' + NSPREFIXES['w'] + '}t')
                                     next_text.text = next_text.text[overflow:]					
                     text_element.text = newstring
         else:
-            for element in self.document.iter('{%s}t' % NSPREFIXES['w']):
+            for element in self.document.iter('{' + NSPREFIXES['w'] + '}t'):
                 if element.text and searchre.search(element.text):
                     element.text = re.sub(search, replace, element.text)
                         
@@ -315,7 +316,7 @@ class Docx():
         for t in ('t', 'r'):
             remove_list = []
             for element in self.document.iter():
-                if (element.tag == '{%s}%s' % (NSPREFIXES['w'], t) and
+                if (element.tag == '{' + NSPREFIXES['w'] + '}t' and
                 not element.text and not len(element)):
                     remove_list.append(element)
             for element in remove_list:
@@ -416,9 +417,9 @@ class Docx():
             for element in para.iter('{' + NSPREFIXES['w'] + '}t'):
                 # Find t (text) elements
                 if element.text:
-                    paratext = paratext + element.text
+                    paratext += paratext
                 elif element.tag == '{' + NSPREFIXES['w'] + '}tab':
-                    paratext = paratext + '\t'
+                    paratext += '\t'
             # Add our completed paragraph text to the list of paragraph text
             if len(paratext):
                 paratextlist.append(paratext)
@@ -429,6 +430,23 @@ class Docx():
             fromdoc = docpath
         else:
             fromdoc = Docx(docpath)
+        for relationship in fromdoc.relationships:
+            old_rId = relationship.values()[0]
+            relationship_type = relationship.values()[1]
+            relationship_target = relationship.values()[2]
+            new_rId = helper_functions.add_relationship(self, relationship_target,
+                                                   relationship_type)
+            for element in fromdoc.body.iter():
+                for item in element.items():
+                    attribute = item[0]
+                    value = item[1]
+                    if old_rId == value:
+                        element.set(attribute, new_rId)
+        if not os.path.isdir(self.media_dir):
+            os.mkdir(self.media_dir)
+        for file in os.listdir(fromdoc.media_dir):
+            shutil.copyfile(os.path.join(fromdoc.media_dir, file),
+                            os.path.join(self.media_dir, file))
         first_sectpr = self.body.find('{' + NSPREFIXES['w'] + '}sectPr')
         if page_break:
             try:
@@ -737,11 +755,6 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
     '''Make a new paragraph element, containing a run, and some text.
     Return the paragraph element.
 
-    @param string jc: Paragraph alignment, possible values:
-                    left, center, right, both (justified), ...
-                    see http://www.schemacentral.com/sc/ooxml/t-w_ST_Jc.html
-                    for a full list
-
     If paratext is a list, spawn multiple run/text elements.
     Support text styles (paratext must then be a list of lists in the form
     <text> / <style>. Stile is a string containing a combination od 'bui' chars
@@ -936,8 +949,7 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
     rowprops.append(cnfStyle)
     row.append(rowprops)
     if heading:
-        i = 0
-        for heading in contents[0]:
+        for i, heading in enumerate(contents[0]):
             cell = makeelement('tc')
             # Cell properties
             cellprops = makeelement('tcPr')
@@ -957,13 +969,11 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
                 else:
                     cell.append(paragraph(h, pprops={'jc':{'val': 'center'}}))
             row.append(cell)
-            i += 1
         table.append(row)
     # Contents Rows
     for contentrow in contents[1 if heading else 0:]:
         row = makeelement('tr')
-        i = 0
-        for content in contentrow:
+        for i, content in enumerate(contentrow):
             cell = makeelement('tc')
             # Properties
             cellprops = makeelement('tcPr')
@@ -987,7 +997,6 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
                         align = 'left'
                     cell.append(paragraph(c, pprops={'jc':{'val': 'center'}}))
             row.append(cell)
-            i += 1
         table.append(row)
     return table
     
@@ -999,11 +1008,10 @@ def picture(document, picpath, picdescription='', pixelwidth=None, pixelheight=N
     # Create an image. Size may be specified, otherwise it will based on the
     # pixel size of image.
     # Copy the file into the media dir
-    media_dir = os.path.join(write_dir, 'word', 'media')
-    if not os.path.isdir(media_dir):
-        os.mkdir(media_dir)
+    if not os.path.isdir(document.media_dir):
+        os.mkdir(document.media_dir)
     picname = os.path.basename(picpath)
-    shutil.copyfile(picname, os.path.join(media_dir, picname))
+    shutil.copyfile(picname, os.path.join(document.media_dir, picname))
     # Check if the user has specified a size
     if not pixelwidth or not pixelheight:
         pixelwidth, pixelheight = helper_functions.get_image_size(picpath)
@@ -1014,10 +1022,11 @@ def picture(document, picpath, picdescription='', pixelwidth=None, pixelheight=N
     height = str(pixelheight * emuperpixel)
     # Set relationship ID to the first available
     picid = '2'
-    rId = 'rId' + write_files.add_relationship(document,
-                                os.path.join('media', picname),
-                                'http://schemas.openxmlformats.org/'
-                                'officeDocument/2006/relationships/image')
+    rId = helper_functions.add_relationship(document,
+                                       os.path.join('media', picname),
+                                       'http://schemas.openxmlformats.org/'
+                                       'officeDocument/2006/relationships/'
+                                       'image')
     # There are 3 main elements inside a picture
     # 1. The Blipfill - specifies how the image fills the picture area (stretch, tile, etc.)
     blipfill = makeelement('blipFill', nsprefix='pic')

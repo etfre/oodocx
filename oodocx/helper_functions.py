@@ -2,6 +2,8 @@ import struct
 import imghdr
 import stat
 import os
+from lxml import etree
+from oodocx import write_files
 	
 def get_image_size(fname):
 	'''Determine the image type of fhandle and return its size.
@@ -45,3 +47,23 @@ def remove_readonly(fn, path, excinfo):
     elif fn is os.remove:
         os.chmod(path, stat.S_IWRITE)
         os.remove(path)
+        
+def add_relationship(document, target, type):
+    '''checks Relationships element to see if element is included,
+    adds it if not, returns element's rId or None'''
+    relationship_items = [child.items() for child in document.relationships.getchildren()]
+    flat_relationships = sum(relationship_items, [])
+    id_numbers = sorted([int(item[1][3:]) for item in flat_relationships if item[0] == 'Id'])
+    rId_number = len(id_numbers) + 1
+    for count, number in enumerate(id_numbers, start=1):
+        if count != number:
+            rId_number = count + 1
+            break
+    if target not in [child[1] for child in flat_relationships] or 'media' in target:
+        document.relationships.append(write_files.makeelement('Relationship', nsprefix=None,
+        attributes={'Id': 'rId' + str(rId_number),
+                    'Target': target,
+                    'Type': type}))
+        return 'rId' + str(rId_number)
+    else:
+        return None        
