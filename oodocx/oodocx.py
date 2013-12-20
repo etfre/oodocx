@@ -177,6 +177,8 @@ class Docx():
                                         namespaces=NSPREFIXES)[0]
         
     def get_body(self):
+        print('Warning: This method is deprecated and will be removed at some '
+              'point in the future. Use the self.body attribute instead.')
         return self.document.xpath('/w:document/w:body',
                                    namespaces=NSPREFIXES)[0]
         
@@ -467,6 +469,12 @@ class Docx():
                     if os.path.join(relpath, file) not in tofiles:  
                         shutil.copyfile(os.path.join(fromdoc.write_dir, relpath, file),
                         os.path.join(self.write_dir, relpath, file))
+        # Update Content Types if necessary
+        for type in fromdoc.contenttypes.iterchildren():
+            type_string = etree.tostring(type)
+            if type_string not in [etree.tostring(second_type) for second_type
+                                   in self.contenttypes.iterchildren()]:
+                self.contenttypes.append(type)
         first_sectpr = self.body.find('{' + NSPREFIXES['w'] + '}sectPr')
         if page_break:
             try:
@@ -685,6 +693,7 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
                 if key in (1, True):
                     element = makeelement(value)
                     rpr.append(element)
+                    
 def modify_paragraph(elements, indent='default', spacing='default',
 pstyle='default', justification='default'):
     if isinstance(elements, (list, tuple)):
@@ -702,38 +711,39 @@ pstyle='default', justification='default'):
         para_list = [child for child in elements if child.tag
         == '{' + NSPREFIXES['w'] + '}p']
     for para in para_list:
-        ppr = para.find('{' + NSPREFIXES['w'] + '}pPr')
-        if ppr is None:
-            ppr = makeelement('pPr')
-            para.insert(0, ppr)
+        pPr = para.find('{' + NSPREFIXES['w'] + '}pPr')
+        if pPr is None:
+            pPr = makeelement('pPr')
+            para.insert(0, pPr)
         if indent != 'default':
-            ind = ppr.find('{' + NSPREFIXES['w'] + '}ind')
+            ind = pPr.find('{' + NSPREFIXES['w'] + '}ind')
             if ind is not None:
-                ppr.remove(ind)
+                pPr.remove(ind)
             if isinstance(indent, dict):
                 ind = makeelement('ind', attributes=indent)
-                ppr.append(ind)
+                pPr.append(ind)
         if spacing != 'default':
-            spacing_element = ppr.find('{' + NSMAPS['w'] + '}spacing')
+            spacing_element = pPr.find('{' + NSPREFIXES['w'] + '}spacing')
             if spacing_element is not None:
-                ppr.remove(spacing_element)
+                pPr.remove(spacing_element)
             if isinstance(spacing, dict):
                 if 'lineRule' not in spacing.keys():
                     spacing['lineRule'] = 'auto'
                 spacing_element = makeelement('spacing', attributes=spacing)
-                ppr.append(spacing_element)
+                pPr.append(spacing_element)
         if pstyle != 'default':
-            pstyle_element = ppr.find('{' + NSMAPS['w'] + '}pStyle')
+            pstyle_element = pPr.find('{' + NSPREFIXES['w'] + '}pStyle')
             if pstyle_element is not None:
-                ppr.remove(pstyle_element)
+                pPr.remove(pstyle_element)
             pstyle_element = makeelement('pStyle', attributes={'val': pstyle})
-            ppr.append(pstyle_element)
+            pPr.append(pstyle_element)
         if justification != 'default':
             jc = para.find('{' + NSPREFIXES['w'] + '}jc')
             if jc is not None:
-                ppr.remove(jc)
-            jc = makeelement('jc', attributes={'val': justification.lower()})
-            ppr.append(jc)
+                jc.set('{' + NSPREFIXES['w'] + '}val', justification.lower())
+            else:
+                jc = makeelement('jc', attributes={'val': justification.lower()})
+                pPr.append(jc)
             
 def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
                 attrnsprefix=None):
@@ -751,13 +761,13 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
     else:
         # For when namespace = None
         namespace = ''
-    newelement = etree.Element(namespace+tagname, nsmap=namespacemap)
+    newelement = etree.Element(namespace + tagname, nsmap=namespacemap)
     # Add attributes with namespaces
     if attributes:
         # If they haven't bothered setting attribute namespace, use an empty string
         # (equivalent of no namespace)
         if not attrnsprefix:
-            # Quick hack: it seems every element that has a 'w' nsprefix for its tag uses the same prefix for it's attributes
+            # Quick hack: it seems every element that has a 'w' nsprefix for its tag uses the same prefix for its attributes
             if nsprefix == 'w':
                 attributenamespace = namespace
             else:
@@ -765,29 +775,18 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
         else:
             attributenamespace = '{' + NSPREFIXES[attrnsprefix] + '}'
         for tagattribute in attributes:
-            newelement.set(attributenamespace + tagattribute, attributes[tagattribute])
+            newelement.set(attributenamespace + tagattribute,
+                           attributes[tagattribute])
     if tagtext is not None and len(tagtext):
         newelement.text = tagtext
     newelement.prefix
     return newelement
     
-def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
+def paragraph(paratext, breakbefore=False, rprops=None, pprops=None):
     '''Make a new paragraph element, containing a run, and some text.
-    Return the paragraph element.
-
-    If paratext is a list, spawn multiple run/text elements.
-    Support text styles (paratext must then be a list of lists in the form
-    <text> / <style>. Stile is a string containing a combination od 'bui' chars
-
-    example
-    paratext =\
-        [ ('some bold text', 'b')
-        , ('some normal text', '')
-        , ('some italic underlined text', 'iu')
-        ]
-
-    '''
-    # Make our elements
+    Return the paragraph element. rprops modifies properties of all
+    runs within paragraph, pprops modifies paragraph's overall
+    properties (spacing, indentation, etc.)'''
     paragraph = makeelement('p')
     if isinstance(paratext, list):
         text = []
@@ -799,6 +798,7 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
     else:
         text = [[makeelement('t', tagtext=paratext), ''], ]
     pPr = makeelement('pPr')
+    # Add paragraph properties
     if pprops:
         if isinstance(pprops, dict):
             for tag, atts in pprops.items():
@@ -812,6 +812,7 @@ def paragraph(paratext, style='', breakbefore=False, rprops=None, pprops=None):
     for t in text:
         run = makeelement('r')
         rPr = makeelement('rPr')
+        # Add run properties
         if rprops:
             if isinstance(rprops, dict):
                 for tag, atts in rprops.items():
@@ -1162,6 +1163,8 @@ def append_text(element, text):
         element.text += text
         
 def numbered_list(start, end=None):
+    '''Creates a numbered list containing all of the paragraphs between
+    the start and end paragraph elements, inclusively'''
     if end is None:
         end = start
     body = start.getparent()
