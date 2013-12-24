@@ -183,30 +183,31 @@ class Docx():
                                    namespaces=NSPREFIXES)[0]
         
     def search(self, search, result_type='text', ignore_runs=True):
-        '''Search for a regex, returns first matching element object or
-        None if nothing found. Will return the first element if match
-        spans multiple text elements.'''
+        '''Search each paragraph for a regex, returns first matching
+        element object or None if nothing found. Will return the
+        first element if match spans multiple text elements.'''
         searchre = re.compile(search)
         result = None
         if ignore_runs:
-            para_list = [child for child in
-                         self.document.iter('{' + NSPREFIXES['w'] + '}p')]
-            text_positions = []
-            raw_text = []
-            start = 0
-            for para in para_list:
-                for element in para.iter('{' + NSPREFIXES['w'] + '}t'):
-                    if element.text:
-                        raw_text.append(element.text)
-                        text_positions.append((start,
-                        start + len(element.text) - 1, element))
-                        start += len(element.text)
-            match = searchre.search(''.join(raw_text))
-            if match:
-                for value in text_positions:
-                    if match.start() in range(value[0], value[1] + 1):
-                        result = value[2]
-                        break
+            for paragraph in self.document.iter('{' + NSPREFIXES['w'] + '}p'):
+                text_positions = []
+                start = 0
+                paragraph_string = get_text(paragraph)
+                for text_element in paragraph.iter('{' + NSPREFIXES['w'] +
+                                                   '}t'):
+                    if text_element.text:
+                        text_positions.append({'start': start,
+                        'end': start + len(text_element.text) - 1,
+                        'element': text_element})
+                    start += len(text_element.text)
+                match = searchre.search(paragraph_string)
+                if match:
+                    for position in text_positions:
+                        if match.start() in range(position['start'],
+                                                  position['end'] + 1):
+                            result = position['element']
+                            break
+                    break
         else:
             for element in self.document.iter('{' + NSPREFIXES['w'] + '}t'):
                 if element.text and searchre.search(element.text):
@@ -214,40 +215,43 @@ class Docx():
                     break
         if result is not None:
             if result_type.lower() == 'paragraph':
-                while not result.tag == '{' + NSPREFIXES['w'] + '}p':
-                    result = result.getparent()
+                if (result.iterancestors('{' + NSPREFIXES['w'] + '}p')
+                    is not None):
+                    while not result.tag == '{' + NSPREFIXES['w'] + '}p':
+                        result = result.getparent()
+                else:
+                    raise
             elif result_type.lower() == 'run':
-                while not result.tag == '{' + NSPREFIXES['w'] + '}r':
-                    result = result.getparent()	
+                if (result.iterancestors('{' + NSPREFIXES['w'] + '}r')
+                    is not None):
+                    while not result.tag == '{' + NSPREFIXES['w'] + '}r':
+                        result = result.getparent()
+                else:
+                    raise
         return result
         
     def replace(self, search, replace, ignore_runs=True):
         '''Replace all occurrences of string with a different string.
         If ignore_runs is true, the function will ignore separate run
-        and text elements and instead search each raw paragraph text
+        and text elements and instead search each paragraph text
         content as a single string. Note that this will also ignore
         formatting elements within a paragraph such as tabs, which
         may cause unexpected results. Set ignore_runs to false if you
         want a more conservative search.'''
         searchre = re.compile(search)
         if ignore_runs:
-            para_list = [child for child in
-                         self.document.iter('{' + NSPREFIXES['w'] + '}p')]
-            for para in para_list:
-                paratext = []
+            for paragraph_element in self.document.iter('{' + NSPREFIXES['w'] +
+                                                        '}p'):
                 rundict = collections.OrderedDict()
                 start = 0
-                for element in para.iter('{' + NSPREFIXES['w'] + '}r'):
-                    runtext = []
-                    for subelement in element.iter('{' + NSPREFIXES['w'] + '}t'):
-                        if subelement.text:
-                            paratext.append(subelement.text)
-                            runtext.append(subelement.text)
-                            rundict[element] = [start, start +
-                            len(subelement.text), ''.join(runtext)]
-                            start += len(subelement.text)
+                for run_element in paragraph_element.iter('{' + NSPREFIXES['w']
+                                                          + '}r'):
+                    run_string = get_text(run_element)
+                    rundict[run_element] = [start, start + len(run_string),
+                                            run_string]
+                    start += len(run_string)
                 match_slices = [match.span() for match in
-                re.finditer(searchre, ''.join(paratext))]
+                re.finditer(searchre, get_text(paragraph_element))]
                 preliminary_runs = collections.OrderedDict()
                 runs_to_exclude = set()
                 for run, text_info in rundict.items():
@@ -275,7 +279,7 @@ class Docx():
                         previous_text.text += text_info[2]
                         previous_text_info[1] += len(text_info[2])
                         previous_text_info[2] += text_info[2]
-                        para.remove(run)
+                        paragraph_element.remove(run)
                 overflow = 0
                 for index, (run, text_info) in enumerate(
                 runs_to_modify.items()):
@@ -325,7 +329,7 @@ class Docx():
                 element.getparent().remove(element)
         
     def add_style(self, styleId, type, default=None, name=None):
-        if default in (1, '1', True):
+        if default:
             style = makeelement('style', attributes={'styleId': styleId, 
             'type': type, 'default': default})
         else:
@@ -428,10 +432,16 @@ class Docx():
         return paratextlist
     
     def merge(self, docpath, page_break=True):
+        '''Appends a .docx to the end of this document. docpath can
+        either be a Docx object or a file path. This method will likely
+        break if both documents possess the same type of elements that
+        require id mapping such as lists or comments. Pictures and other
+        <w: drawing> elements, however, should work 100% of the time.'''
         if isinstance(docpath, Docx):
             fromdoc = docpath
         else:
             fromdoc = Docx(docpath)
+        # Update relationship Ids
         for relationship in fromdoc.relationships:
             old_rId = relationship.values()[0]
             relationship_type = relationship.values()[1]
@@ -460,8 +470,13 @@ class Docx():
             head, tail = os.path.split(dirpath)
             if tail == 'media':
                 for file in filenames:
-                    shutil.copyfile(os.path.join(fromdoc.media_dir, file),
-                                    os.path.join(self.media_dir, file))
+                    if os.path.join(self.media_dir, file) not in tofiles:
+                        shutil.copyfile(os.path.join(fromdoc.media_dir, file),
+                                        os.path.join(self.media_dir, file))
+                    else:  # Account for duplicate picture names
+                        shutil.copyfile(os.path.join(fromdoc.media_dir,
+                                                    'new_' + file),
+                                        os.path.join(self.media_dir, file))
             else:
                 for file in filenames:
                     if not os.path.isdir(os.path.join(self.write_dir, relpath)):
@@ -498,6 +513,7 @@ class Docx():
         self.body.extend(fromdoc.body.iterchildren())
       
     def save(self, output):
+        '''Saves the Docx to the output path provided.'''
         docxfile = zipfile.ZipFile(output, mode='w',
         compression=zipfile.ZIP_DEFLATED)
         # Move to the template data path
@@ -506,7 +522,8 @@ class Docx():
         # Write changes made to xml files in write directory between __init__()
         # and save()
         for xmlfile, relpath in self.xmlfiles.items():
-            absolutepath = os.path.split(os.path.join(self.write_dir, relpath))[0]
+            absolutepath = os.path.split(
+                           os.path.join(self.write_dir, relpath))[0]
             if not os.path.isdir(absolutepath):
                 os.mkdir(absolutepath)
             newdoc = io.open(relpath, 'w')
@@ -529,19 +546,14 @@ class Docx():
             pass
     
 def merge_text(run):
-    runtext = ''
-    first = True
-    for child in run.iterchildren('{' + NSPREFIXES['w'] + '}t'):
-        if child.text:
-            runtext == ''
-            runtext += child.text
-            if first:
-                first_text_element = child
-                first = False
-            else:
-                run.remove(child)                                                                    
-            first_text_element.text = runtext
-        
+    '''Combines the text of all text elements in a run into a single
+    text element, removes the other text elements.'''
+    for index, child in enumerate(
+    run.iterchildren('{' + NSPREFIXES['w'] + '}t')):
+        if index == 0:
+            child.text = get_text(run)
+        else:
+            run.remove(child)
     
 def modify_font(elements, name='default', size='default', underline='default',
 color='default', highlight='default', strikethrough='default', bold='default',
