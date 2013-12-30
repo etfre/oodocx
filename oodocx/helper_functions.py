@@ -3,10 +3,6 @@ import imghdr
 import stat
 import os
 from lxml import etree
-try:
-    from oodocx import write_files
-except ImportError:
-    import write_files
 	
 def get_image_size(fname):
 	'''Determine the image type of fhandle and return its size.
@@ -63,10 +59,46 @@ def add_relationship(document, target, type):
             rId_number = count + 1
             break
     if target not in [child[1] for child in flat_relationships] or 'media' in target:
-        document.relationships.append(write_files.makeelement('Relationship', nsprefix=None,
+        document.relationships.append(makeelement('Relationship', nsprefix=None,
         attributes={'Id': 'rId' + str(rId_number),
                     'Target': target,
                     'Type': type}))
         return 'rId' + str(rId_number)
     else:
         return None        
+
+def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None, attrnsprefix=None):
+    '''Create an element & return it'''
+    # Deal with list of nsprefix by making namespacemap
+    namespacemap = None
+    if isinstance(nsprefix, list):
+        namespacemap = {}
+        for prefix in nsprefix:
+            namespacemap[prefix] = NSPREFIXES[prefix]
+        # FIXME: rest of code below expects a single prefix
+        nsprefix = nsprefix[0]
+    if nsprefix:
+        namespace = '{' + NSPREFIXES[nsprefix] + '}'
+    else:
+        # For when namespace = None
+        namespace = ''
+    newelement = etree.Element(namespace+tagname, nsmap=namespacemap)
+    # Add attributes with namespaces
+    if attributes:
+        # If they haven't bothered setting attribute namespace, use an empty string
+        # (equivalent of no namespace)
+        if not attrnsprefix:
+           # Quick hack: it seems every element that has a 'w' nsprefix for its tag uses the same prefix for its attributes
+            if nsprefix == 'w':
+                attributenamespace = namespace
+            else:
+                attributenamespace = ''
+        else:
+            attributenamespace = '{'+NSPREFIXES[attrnsprefix]+'}'
+        
+        for tagattribute in attributes:
+            newelement.set(attributenamespace+tagattribute, attributes[tagattribute])
+    if tagtext:
+        newelement.text = tagtext
+    newelement.prefix
+    return newelement

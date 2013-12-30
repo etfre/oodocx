@@ -18,14 +18,8 @@ import collections
 import stat
 import tempfile
 from lxml import etree
-try:
-    from oodocx import helper_functions
-except ImportError:
-    import helper_functions
-try:
-    from oodocx import write_files
-except ImportError:
-    import write_files
+from oodocx import helper_functions
+from oodocx import write_files
 
 log = logging.getLogger(__name__)
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'template')
