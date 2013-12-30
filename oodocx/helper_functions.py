@@ -3,7 +3,10 @@ import imghdr
 import stat
 import os
 from lxml import etree
-from oodocx import write_files
+try:
+    from oodocx import write_files
+except ImportError:
+    import write_files
 	
 def get_image_size(fname):
 	'''Determine the image type of fhandle and return its size.
