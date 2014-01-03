@@ -193,7 +193,7 @@ class Docx():
                         text_positions.append({'start': start,
                         'end': start + len(text_element.text) - 1,
                         'element': text_element})
-                    start += len(text_element.text)
+                        start += len(text_element.text)
                 match = searchre.search(paragraph_string)
                 if match:
                     for position in text_positions:
