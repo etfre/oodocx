@@ -1,6 +1,6 @@
 import os
 from lxml import etree
-from oodocx import helper_functions
+import helper_functions
 
 NSPREFIXES = {
     'mo': 'http://schemas.microsoft.com/office/mac/office/2008/main',
