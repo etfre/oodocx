@@ -18,8 +18,8 @@ import collections
 import stat
 import tempfile
 from lxml import etree
-from oodocx import helper_functions
-from oodocx import write_files
+import helper_functions
+import write_files
 
 log = logging.getLogger(__name__)
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'template')
@@ -536,8 +536,8 @@ class Docx():
         os.chdir(prev_dir)  # restore previous working dir
         try:
             shutil.rmtree(self.write_dir, onerror=helper_functions.remove_readonly)
-        except FileNotFoundError:
-            pass
+        except IOError as e:
+            print(os.strerror(e.errno))
     
 def merge_text(run):
     '''Combines the text of all text elements in a run into a single
