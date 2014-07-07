@@ -6,7 +6,6 @@ resembling a testing suite. That said, everything works as it should,
 and it contains several features that the superiorly constructed
 <a href="https://github.com/python-openxml/python-docx">python-docx</a> currently
 lacks. As a result, for the time being at least, this repository will remain available.
-Here are some of the differences of oodocx from python-docx:
 
 <h2>Installation</h2>
 First, ensure that you have the appropriate version of lxml installed. Then,
