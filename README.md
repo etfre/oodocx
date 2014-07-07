@@ -1,6 +1,6 @@
 <h1>oodocx</h1>
 
-Note: I cut my programming teeth with this project. As a result, the code
+Note: I cut my teeth programming this project. As a result, the code
 is questionably written, poorly modularized, and lacks anything even remotely
 resembling a testing suite. That said, everything works as it should,
 and it contains several features that the superiorly constructed
