@@ -1,28 +1,12 @@
 <h1>oodocx</h1>
 
-oodocx is a fork/modification/Python 3 port of Mike MacCana's excellent
-<a href="https://github.com/mikemaccana/python-docx">python-docx</a> module.
+Note: I cut my programming teeth with this project. As a result, the code
+is questionably written, poorly modularized, and lacks anything even remotely
+resembling a testing suite. That said, everything works as it should,
+and it contains several features that the superiorly constructed
+<a href="https://github.com/python-openxml/python-docx">python-docx</a> currently
+lacks. As a result, for the time being at least, this repository will remain available.
 Here are some of the differences of oodocx from python-docx:
-<p>
-1. Object Oriented. As the name suggests, oodocx has an object-oriented aspect.
-The Docx class represents the various files that comprise a docx file,
-which is simply a zip file that contains primarily xml files.
-The document.xml file is the main document that holds most of the content that
-you find in a word document. However, this module also gives you easy access to
-most of the other files that typically comprise a docx file as attributes of
-the Docx class. For example, the root element in styles.xml of a Docx object
-named "d" can be accessed as d.styles.
-This allows for greater control of the look, feel, and metadata
-of a docx file.
-</p>
-<p>2. Python 3 compatible.</p>
-<p>3. Expanded functionality, particularly for people with limited knowledge of xml
-who want to get started quickly on their docx scripting projects. Some examples include
-the modify_font and modify_paragraph functions, which allow for easy modification of 
-common font and paragraph properties of an element or a list of elements.</p>
-<p>4. oodocx keeps all of the files in the Docx zip, rather than just the 
-document.xml file. This helps to preserve formatting and ensures that pictures, comments,
-and other elements in a Docx won't break from save to save.</p>
 
 <h2>Installation</h2>
 First, ensure that you have the appropriate version of lxml installed. Then,
