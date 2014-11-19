@@ -18,8 +18,8 @@ import collections
 import stat
 import tempfile
 from lxml import etree
-from oodocx import helper_functions
-from oodocx import write_files
+import helper_functions
+import write_files
 
 log = logging.getLogger(__name__)
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'template')
@@ -98,13 +98,13 @@ class Docx():
                 zipdoc.extractall(self.write_dir)
         else:
             shutil.copytree(TEMPLATE_DIR, self.write_dir)
-            
+
             self.rels = write_files.write_rels()
             self.xmlfiles[self.rels] = os.path.join('_rels', '.rels')
-            
+
             self.contenttypes = write_files.write_content_types()
             self.xmlfiles[self.contenttypes] = '[Content_Types].xml'
-            
+
         for root, dirs, filenames in os.walk(self.write_dir):
             for file in filenames:
                 if file[-4:] == '.xml' or file[-5:] == '.rels':
@@ -125,7 +125,7 @@ class Docx():
                         'xml':  'application/xml'}
                         default_elements = [child for child
                         in self.contenttypes.iterchildren()
-                        if 'Default' in child.tag] 
+                        if 'Default' in child.tag]
                         for key, value in filetypes.items():
                             missing_filetype = True
                             for child in default_elements:
@@ -143,39 +143,39 @@ class Docx():
                     elif file == 'comments.xml':
                         self.comments = xmlfile
                         self.xmlfiles[self.comments] = relpath
-                    elif file == 'core.xml': 
+                    elif file == 'core.xml':
                         self.core = xmlfile
                         self.xmlfiles[self.core] = relpath
-                    elif file == 'document.xml': 
+                    elif file == 'document.xml':
                         self.document = xmlfile
                         self.xmlfiles[self.document] = relpath
-                    elif file == 'document.xml.rels': 
+                    elif file == 'document.xml.rels':
                         self.relationships = xmlfile
-                        self.xmlfiles[self.relationships] = relpath	
-                    elif file == 'fontTable.xml': 
+                        self.xmlfiles[self.relationships] = relpath
+                    elif file == 'fontTable.xml':
                         self.fontTable = xmlfile
                         self.xmlfiles[self.fontTable] = relpath
-                    elif file == 'settings.xml': 
-                        self.styles = xmlfile
-                        self.xmlfiles[self.styles] = relpath						
-                    elif file == 'styles.xml': 
+                    elif file == 'settings.xml':
                         self.styles = xmlfile
                         self.xmlfiles[self.styles] = relpath
-                    elif file == 'stylesWithEffects.xml': 
+                    elif file == 'styles.xml':
+                        self.styles = xmlfile
+                        self.xmlfiles[self.styles] = relpath
+                    elif file == 'stylesWithEffects.xml':
                         self.stylesWithEffects = xmlfile
-                        self.xmlfiles[self.stylesWithEffects] = relpath		
-                    elif file == 'webSettings.xml': 
+                        self.xmlfiles[self.stylesWithEffects] = relpath
+                    elif file == 'webSettings.xml':
                         self.webSettings = xmlfile
-                        self.xmlfiles[self.webSettings] = relpath	
+                        self.xmlfiles[self.webSettings] = relpath
         self.body = self.document.xpath('/w:document/w:body',
                                         namespaces=NSPREFIXES)[0]
-        
+
     def get_body(self):
         print('Warning: This method is deprecated and will be removed at some '
               'point in the future. Use the self.body attribute instead.')
         return self.document.xpath('/w:document/w:body',
                                    namespaces=NSPREFIXES)[0]
-        
+
     def search(self, search, result_type='text', ignore_runs=True):
         '''Search each paragraph for a regex, returns first matching
         element object or None if nothing found. Will return the
@@ -223,7 +223,7 @@ class Docx():
                 else:
                     raise
         return result
-        
+
     def replace(self, search, replace, ignore_runs=True):
         '''Replace all occurrences of string with a different string.
         If ignore_runs is true, the function will ignore separate run
@@ -284,7 +284,7 @@ class Docx():
                     for match in match_slices:
                         if match[0] in range(text_info[0], text_info[1]):
                             newstring = (newstring[:match[0] + runshift -
-                            text_info[0]] + replace + 
+                            text_info[0]] + replace +
                             text_element.text[match[1] - text_info[0]:])
                             try:
                                 if ' ' in (newstring[0], newstring[-1]):
@@ -304,13 +304,13 @@ class Docx():
                                     runs_to_modify.keys())[index + 1]
                                     next_text = next_run.find(
                                     '{' + NSPREFIXES['w'] + '}t')
-                                    next_text.text = next_text.text[overflow:]					
+                                    next_text.text = next_text.text[overflow:]
                     text_element.text = newstring
         else:
             for element in self.document.iter('{' + NSPREFIXES['w'] + '}t'):
                 if element.text and searchre.search(element.text):
                     element.text = re.sub(search, replace, element.text)
-                        
+
     def clean(self):
         '''Remove empty text and run elements'''
         for t in ('t', 'r'):
@@ -321,19 +321,19 @@ class Docx():
                     remove_list.append(element)
             for element in remove_list:
                 element.getparent().remove(element)
-        
+
     def add_style(self, styleId, type, default=None, name=None):
         if default:
-            style = makeelement('style', attributes={'styleId': styleId, 
+            style = makeelement('style', attributes={'styleId': styleId,
             'type': type, 'default': default})
         else:
-            style = makeelement('style', attributes={'styleId': styleId, 
+            style = makeelement('style', attributes={'styleId': styleId,
             'type': type})
         style.append(makeelement('pPr'))
         style.append(makeelement('rPr'))
         self.styles.append(style)
         return style
-        
+
     def set_margins(self, left='', right='', top='', bottom='', header='',
     footer='', gutter=''):
         sectPr = self.get_section_properties()
@@ -346,7 +346,7 @@ class Docx():
         for key, value in attributes_dict.items():
             if value:
                 pgMar.set('{' + NSPREFIXES['w'] + '}' + str(key), value)
-        
+
     def modify_paragraph_defaults(self, indent='default', spacing='default',
     pstyle='default', justification='default', modify_styles=False):
         elements_to_modify = []
@@ -365,7 +365,7 @@ class Docx():
         modify_paragraph(elements_to_modify, indent=indent,
         spacing=spacing, pstyle=pstyle, justification=justification)
 
-    def modify_font_defaults(self, name='default', size='default', 
+    def modify_font_defaults(self, name='default', size='default',
     underline='default', color='default', highlight='default',
     strikethrough='default', bold='default', subscript='default',
     superscript='default', italics='default', shadow='default',
@@ -389,7 +389,7 @@ class Docx():
         strikethrough=strikethrough, subscript=subscript,
         superscript=superscript, bold=bold, italics=italics, shadow=shadow,
         smallcaps=smallcaps, allcaps=allcaps, hidden=hidden)
-        
+
     def get_section_properties(self):
         '''Returns the sectPr element at the end of the body, creates
         the element first if one is not found'''
@@ -401,7 +401,7 @@ class Docx():
             sect_props = makeelement('sectPr')
             self.body.append(sect_props)
             return sect_props
-            
+
     def get_document_text(self):
         '''Return the raw text of a document, as a list of paragraphs.'''
         paratextlist = []
@@ -424,7 +424,7 @@ class Docx():
             if len(paratext):
                 paratextlist.append(paratext)
         return paratextlist
-    
+
     def merge(self, docpath, page_break=True):
         '''Appends a .docx to the end of this document. docpath can
         either be a Docx object or a file path. This method will likely
@@ -475,7 +475,7 @@ class Docx():
                 for file in filenames:
                     if not os.path.isdir(os.path.join(self.write_dir, relpath)):
                         os.mkdir(os.path.join(self.write_dir, relpath))
-                    if os.path.join(relpath, file) not in tofiles:  
+                    if os.path.join(relpath, file) not in tofiles:
                         shutil.copyfile(os.path.join(fromdoc.write_dir, relpath, file),
                         os.path.join(self.write_dir, relpath, file))
         # Update Content Types if necessary
@@ -505,7 +505,7 @@ class Docx():
                 first_para.append(r)
             r.insert(0, makeelement('lastRenderedPageBreak'))
         self.body.extend(fromdoc.body.iterchildren())
-      
+
     def save(self, output):
         '''Saves the Docx to the output path provided.'''
         docxfile = zipfile.ZipFile(output, mode='w',
@@ -538,7 +538,7 @@ class Docx():
             shutil.rmtree(self.write_dir, onerror=helper_functions.remove_readonly)
         except FileNotFoundError:
             pass
-    
+
 def merge_text(run):
     '''Combines the text of all text elements in a run into a single
     text element, removes the other text elements.'''
@@ -548,7 +548,7 @@ def merge_text(run):
             child.text = get_text(run)
         else:
             run.remove(child)
-    
+
 def modify_font(elements, name='default', size='default', underline='default',
 color='default', highlight='default', strikethrough='default', bold='default',
 subscript='default', superscript='default', italics='default',
@@ -637,7 +637,7 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
                 if color.lower() in COLOR_MAP:
                     color = COLOR_MAP[color.lower()]
                 color_element = makeelement('color', attributes={'val': color})
-                rpr.append(color_element)	
+                rpr.append(color_element)
         if highlight != 'default':
             valid_input = False
             highlight_element = rpr.find('{' + NSPREFIXES['w'] + '}highlight')
@@ -658,7 +658,7 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
         if strikethrough != 'default':
             strike = rpr.find('{' + NSPREFIXES['w'] + '}strike')
             dstrike = rpr.find('{' + NSPREFIXES['w'] + '}dstrike')
-            if (isinstance(strikethrough, str) or 
+            if (isinstance(strikethrough, str) or
             strikethrough in (1, True, 0, False)):
                 if strike is not None:
                     rpr.remove(strike)
@@ -689,7 +689,7 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
                 vertAlign = makeelement('vertAlign',
                 attributes={'val': 'superscript'})
                 rpr.append(vertAlign)
-        bool_list = ((bold, 'b'), (italics, 'i'), (shadow, 'shadow'), 
+        bool_list = ((bold, 'b'), (italics, 'i'), (shadow, 'shadow'),
         (allcaps, 'caps'), (smallcaps, 'smallCaps'), (hidden, 'vanish'))
         for key, value in bool_list:
             if key != 'default':
@@ -699,7 +699,7 @@ shadow='default', smallcaps='default', allcaps='default', hidden='default'):
                 if key in (1, True):
                     element = makeelement(value)
                     rpr.append(element)
-                    
+
 def modify_paragraph(elements, indent='default', spacing='default',
 pstyle='default', justification='default'):
     if isinstance(elements, (list, tuple)):
@@ -750,7 +750,7 @@ pstyle='default', justification='default'):
             else:
                 jc = makeelement('jc', attributes={'val': justification.lower()})
                 pPr.append(jc)
-            
+
 def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
                 attrnsprefix=None):
     '''Create an element & return it'''
@@ -787,7 +787,7 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
         newelement.text = tagtext
     newelement.prefix
     return newelement
-    
+
 def paragraph(paratext, breakbefore=False, rprops=None, pprops=None):
     '''Make a new paragraph element, containing a run, and some text.
     Return the paragraph element. rprops modifies properties of all
@@ -865,7 +865,7 @@ def paragraph(paratext, breakbefore=False, rprops=None, pprops=None):
             rPr.append(i)
         if run_properties:
             if isinstance(run_properties[0], str):
-                a = makeelement(run_properties[0], 
+                a = makeelement(run_properties[0],
                 attributes={run_properties[1]: run_properties[2]})
                 rPr.append(a)
             else:
@@ -883,7 +883,7 @@ def paragraph(paratext, breakbefore=False, rprops=None, pprops=None):
         paragraph.append(run)
     # Return the combined paragraph
     return paragraph
-    
+
 def heading(headingtext, headinglevel=1, lang='en'):
     '''Make a new heading, return the heading element'''
     lmap = {'en': 'Heading', 'it': 'Titolo'}
@@ -900,7 +900,7 @@ def heading(headingtext, headinglevel=1, lang='en'):
     paragraph.append(run)
     # Return the combined paragraph
     return paragraph
-    
+
 def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto', borders={}, celstyle=None):
     """
     Return a table element based on specified parameters
@@ -1026,7 +1026,7 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
             row.append(cell)
         table.append(row)
     return table
-    
+
 def picture(document, picpath, picdescription='', pixelwidth=None, pixelheight=None, nochangeaspect=True, nochangearrowheads=True):
     '''Take a document and a picture file path, and return a paragraph
     containing the image. The document argument is necessary because we
@@ -1127,8 +1127,8 @@ def picture(document, picpath, picdescription='', pixelwidth=None, pixelheight=N
     paragraph = makeelement('p')
     paragraph.append(run)
     return paragraph
-    
-def append_text(element, text):		
+
+def append_text(element, text):
     if element.tag == '{' + NSPREFIXES['w'] + '}body':
         try:
             last_para = [child for child in element.iterchildren() if child.tag == '{' + NSPREFIXES['w'] + '}p'][-1]
@@ -1167,7 +1167,7 @@ def append_text(element, text):
             element.append(last_text)
     elif element.tag == '{' + NSPREFIXES['w'] + '}t':
         element.text += text
-        
+
 def numbered_list(start, end=None):
     '''Creates a numbered list containing all of the paragraphs between
     the start and end paragraph elements, inclusively'''
@@ -1204,7 +1204,7 @@ def numbered_list(start, end=None):
         numId = makeelement('numId', attributes={'val': numId_value})
         numPr.append(ilvl)
         numPr.append(numId)
-        pPr.insert(0, numPr)	
+        pPr.insert(0, numPr)
 
 def add_comment(document, text, start, end=None, username='', initials=''):
     if end is None:
@@ -1221,11 +1221,11 @@ def add_comment(document, text, start, end=None, username='', initials=''):
                 if sparent.index(start) > eparent.index(end):
                     raise ValueError('end element cannot precede start '
                                      'element')
-            elif start.tag == '{' + NSPREFIXES['w'] + '}r':		
+            elif start.tag == '{' + NSPREFIXES['w'] + '}r':
                 if sgparent.index(sparent) > egparent.index(eparent):
                     raise ValueError('end element cannot precede start '
                                      'element')
-            elif start.tag == '{' + NSPREFIXES['w'] + '}t':		
+            elif start.tag == '{' + NSPREFIXES['w'] + '}t':
                 if sggparent.index(sgparent) > eggparent.index(egparent):
                     raise ValueError('end element cannot precede start '
                                      'element')
@@ -1324,7 +1324,7 @@ def add_comment(document, text, start, end=None, username='', initials=''):
         hourstr = '0' + hourstr
     if len(minutestr) == 1:
         minutestr = '0' + minutestr
-    comment = makeelement('comment', attributes={'id': id_number, 
+    comment = makeelement('comment', attributes={'id': id_number,
     'author': username, 'date': '{0}-{1}-{2}T{3}:{4}:00Z'.format(
     str(date.year), str(date.month), daystr, hourstr, minutestr),
     'initials': initials})
@@ -1343,8 +1343,8 @@ def add_comment(document, text, start, end=None, username='', initials=''):
     para.append(run_text)
     run_text.append(makeelement('t', tagtext=text))
     document.comments.append(comment)
-    
-    
+
+
 def get_text(element):
     '''Returns a single string of text which is a concatenation of all
     of the text contained by text elements in the argument element'''
@@ -1356,9 +1356,9 @@ def get_text(element):
             if descendant.text:
                 text_list.append(descendant.text)
         return ''.join(text_list)
-  
+
 def remove_formatting(element):
     for descendant in element.iter():
-        if (descendant.tag == '{' + NSPREFIXES['w'] + '}pPr' or 
+        if (descendant.tag == '{' + NSPREFIXES['w'] + '}pPr' or
         descendant.tag == '{' + NSPREFIXES['w'] + '}rPr'):
-            descendant.getparent().remove(descendant)        
+            descendant.getparent().remove(descendant)
